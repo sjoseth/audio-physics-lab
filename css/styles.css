@@ -1,0 +1,79 @@
+:root {
+    --bg-dark: #0f172a;
+    --panel-bg: #1e293b;
+    --accent: #3b82f6;
+}
+body { 
+    background-color: var(--bg-dark); 
+    color: #f1f5f9; 
+    font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+    overflow-x: hidden;
+}
+
+.view-section { display: none; min-height: 100vh; flex-direction: column; }
+.view-section.active { display: flex; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+.card-hover:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); border-color: #3b82f6; }
+
+.input-dark { 
+    background-color: #0f172a; border: 1px solid #334155; color: white; transition: border-color 0.15s; 
+}
+.input-dark:focus { 
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); 
+}
+
+select.input-dark { 
+    appearance: none; 
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); 
+    background-position: right 0.5rem center; 
+    background-repeat: no-repeat; 
+    background-size: 1.5em 1.5em; 
+    padding-right: 2.5rem; 
+}
+
+.range-slider { 
+    -webkit-appearance: none; height: 4px; background: #334155; border-radius: 2px; outline: none; 
+}
+.range-slider::-webkit-slider-thumb { 
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid #1e293b; transition: transform 0.1s; 
+}
+.range-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+.btn-action { 
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); 
+    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); 
+    transition: all 0.2s; 
+}
+.btn-action:hover { 
+    transform: translateY(-1px); box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.3); 
+}
+.btn-action:active { transform: translateY(0); }
+
+.glass-panel { 
+    background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px); 
+}
+
+/* Tooltips - UPDATED LOGIC */
+.tooltip-content { 
+    display: none; position: absolute; z-index: 60; 
+    background: #0f172a; border: 1px solid #475569; padding: 8px; border-radius: 6px; 
+    font-size: 11px; width: 200px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); 
+    right: 0; top: 24px; 
+    pointer-events: none; /* Prevents tooltip from capturing mouse */
+}
+/* Show tooltip when parent (.group) is hovered */
+.group:hover .tooltip-content { 
+    display: block; 
+    animation: fadeIn 0.2s; 
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (min-width: 1024px) { .desktop-lock { height: 100vh; overflow: hidden; } }
+
+canvas { touch-action: none; }
