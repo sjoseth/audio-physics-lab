@@ -93,11 +93,9 @@
         ctx.textBaseline = 'middle';
         
         let val, txt, mx, my;
-        
         const direction = (wall === 'left' || wall === 'front') ? 1 : -1;
         let dist = 20 + (layer * 25); 
         if(isSecondary) dist += 45;
-        
         const offset = dist * direction;
 
         if (wall === 'left' || wall === 'right') {
@@ -110,7 +108,6 @@
             ctx.save(); ctx.fillStyle = '#0f172a'; ctx.fillRect(mx - met.width/2 - 2, my - 6, met.width + 4, 12); ctx.restore();
             ctx.fillText(txt, mx, my);
             ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.moveTo(lineX, py); ctx.lineTo(px, py); ctx.stroke();
-
         } else { 
             val = refX;
             const lineY = py + offset;
@@ -130,8 +127,7 @@
         const sx = spkPos.x, sy = spkPos.y;
         const W = state.room.width, L = state.room.length;
 
-        let refX, refY; 
-        let mirX, mirY; 
+        let refX, refY, mirX, mirY; 
 
         if (wall === 'left') {
             mirX = -sx; mirY = sy;
@@ -183,7 +179,9 @@
     }
 
     function draw() {
-        const w = els.canvas.width, h = els.canvas.height;
+        if (!els.container || !els.canvas) return;
+        const w = els.canvas.width;
+        const h = els.canvas.height;
         ctx.clearRect(0, 0, w, h);
         
         ctx.fillStyle = '#0b101e'; ctx.fillRect(0, 0, w, h);
@@ -217,7 +215,6 @@
         const drawEnt = (pos, type, label) => {
             const px = toPx(pos.x, 'x'), py = toPx(pos.y, 'y');
             const c = type === 'spk' ? '#3b82f6' : '#22c55e';
-            
             const isAct = (state.hovered === label || isDragging === label);
             if (isAct) drawMeasurements(pos.x, pos.y, '#3b82f6');
 
@@ -242,7 +239,6 @@
         state.options.showBack = els.toggles.Back.checked;
         state.mirror = els.inputs.Mirror.checked;
         state.mirrorMode = els.inputs.MirrorMode.value;
-
         const pd = 0.2;
         const clamp = (val, max) => Math.max(pd, Math.min(val, max - pd));
         state.speakers.left.x = clamp(state.speakers.left.x, state.room.width);
@@ -251,22 +247,20 @@
         state.speakers.right.y = clamp(state.speakers.right.y, state.room.length);
         state.listener.x = clamp(state.listener.x, state.room.width);
         state.listener.y = clamp(state.listener.y, state.room.length);
-
         draw();
     }
 
     function resizeRF() {
         if (els.container && els.canvas) {
+            if (els.container.clientWidth === 0) return;
             els.canvas.width = els.container.clientWidth;
             els.canvas.height = els.container.clientHeight;
             requestAnimationFrame(() => draw());
         }
     }
 
-    // UPDATED INPUT HANDLING FOR TOUCH
     const getPos = (e) => { 
         const r = els.canvas.getBoundingClientRect(); 
-        // Handle both Mouse and Touch events
         const cx = e.touches ? e.touches[0].clientX : e.clientX;
         const cy = e.touches ? e.touches[0].clientY : e.clientY;
         return { x: cx - r.left, y: cy - r.top }; 
@@ -274,41 +268,33 @@
     
     const handleStart = (e) => {
         const p = getPos(e), mx = toMeters(p.x, 'x'), my = toMeters(p.y, 'y');
+        isDragging = null;
         if (Math.hypot(mx - state.speakers.left.x, my - state.speakers.left.y) < 0.5) isDragging = 'left';
         else if (Math.hypot(mx - state.speakers.right.x, my - state.speakers.right.y) < 0.5) isDragging = 'right';
         else if (Math.hypot(mx - state.listener.x, my - state.listener.y) < 0.5) isDragging = 'lis';
-        draw(); // Update active state immediately
+        draw(); 
     };
 
     const handleMove = (e) => {
         const p = getPos(e), mx = toMeters(p.x, 'x'), my = toMeters(p.y, 'y');
-        
-        // Hover
         const hL = Math.hypot(mx - state.speakers.left.x, my - state.speakers.left.y) < 0.5;
         const hR = Math.hypot(mx - state.speakers.right.x, my - state.speakers.right.y) < 0.5;
         const hLis = Math.hypot(mx - state.listener.x, my - state.listener.y) < 0.5;
         let h = null; 
         if(hL) h='left'; else if(hR) h='right'; else if(hLis) h='listener';
         if(state.hovered !== h) { state.hovered = h; draw(); }
-
         if (!isDragging) return;
-        if(e.cancelable) e.preventDefault(); // Prevent scrolling on touch
-
+        if(e.cancelable) e.preventDefault(); 
         if (isDragging === 'lis') {
             state.listener.x = mx; state.listener.y = my;
         } else {
             const active = state.speakers[isDragging];
             const other = isDragging === 'left' ? state.speakers.right : state.speakers.left;
             active.x = mx; active.y = my;
-
             if (state.mirror) {
                 other.y = my;
-                if (state.mirrorMode === 'room') { 
-                    other.x = state.room.width - mx; 
-                } else { 
-                    const dist = state.listener.x - mx; 
-                    other.x = state.listener.x + dist; 
-                }
+                if (state.mirrorMode === 'room') other.x = state.room.width - mx; 
+                else { const dist = state.listener.x - mx; other.x = state.listener.x + dist; }
                 const pd = 0.1;
                 other.x = Math.max(pd, Math.min(other.x, state.room.width - pd));
                 other.y = Math.max(pd, Math.min(other.y, state.room.length - pd));
@@ -319,21 +305,20 @@
     
     const handleEnd = () => isDragging = null;
 
-    // MOUSE LISTENERS
     els.canvas.addEventListener('mousedown', handleStart);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleEnd);
-
-    // TOUCH LISTENERS (NEW)
     els.canvas.addEventListener('touchstart', handleStart, {passive: false});
     window.addEventListener('touchmove', handleMove, {passive: false});
     window.addEventListener('touchend', handleEnd);
     
     Object.values(els.inputs).forEach(e => e.addEventListener('input', update));
     Object.values(els.toggles).forEach(e => e.addEventListener('change', update));
+    
+    // TILBAKE TIL STANDARD LYTTERE (Slik som Speaker Sim bruker)
     window.addEventListener('resize-rf', resizeRF);
     window.addEventListener('resize', () => { if(document.getElementById('view-reflection-sim').classList.contains('active')) resizeRF(); });
-
     setTimeout(resizeRF, 100);
+
     update();
 })();

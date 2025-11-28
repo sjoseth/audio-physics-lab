@@ -25,7 +25,6 @@
             angle: getEl('spAngleVal'), 
             spread: getEl('spSpreadVal'), 
             dist: getEl('spDistVal'),
-            // DUAL SBIR ELEMENTS
             lFront: getEl('sbirLFront'), lSide: getEl('sbirLSide'),
             lFrontBar: getEl('sbirLFrontBar'), lSideBar: getEl('sbirLSideBar'),
             rFront: getEl('sbirRFront'), rSide: getEl('sbirRSide'),
@@ -89,11 +88,9 @@
             ctx.fillText(txt, mx, my);
         };
 
-        // Left/Right Walls
         if (x < spState.room.width / 2) drawLbl(px - 15, py, x0, py, x);
         else drawLbl(px + 15, py, x1, py, spState.room.width - x);
 
-        // Top/Bottom Walls
         if (y < spState.room.length / 2) drawLbl(px, py - 15, px, y0, y);
         else drawLbl(px, py + 15, px, y1, spState.room.length - y);
         
@@ -114,7 +111,6 @@
 
         ctx.fillStyle = '#111827'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
 
-        // Heatmap
         if (spState.heatmap.active) {
             spState.heatmap.data.forEach(c => {
                 ctx.fillStyle = `hsla(${c.norm * 120}, 70%, 45%, 0.5)`;
@@ -127,7 +123,6 @@
             });
         }
 
-        // L.O.T.S. Guides
         const W = spState.room.width;
         const L = spState.room.length;
         const li = W / 4; const lo = W / 3; const ri = W - W / 4; const ro = W - W / 3;
@@ -144,7 +139,6 @@
         const pLy3 = toPx(ly3, 'y');
         ctx.beginPath(); ctx.moveTo(x0, pLy3); ctx.lineTo(x1, pLy3); ctx.stroke();
         
-        // 38% Rule
         const p38 = toPx(L * 0.38, 'y');
         ctx.strokeStyle = 'rgba(234, 179, 8, 0.2)';
         ctx.beginPath(); ctx.moveTo(x0, p38); ctx.lineTo(x1, p38); ctx.stroke();
@@ -154,10 +148,8 @@
         ctx.textAlign = 'right'; ctx.fillText('L/3', x0 - 5, pLy3); ctx.fillText('38%', x0 - 5, p38);
         ctx.restore();
 
-        // Border
         ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
 
-        // Triangle
         const lx = toPx(spState.listener.x, 'x'); const ly = toPx(spState.listener.y, 'y');
         const lkx = toPx(spState.speakers.left.x, 'x'); const lky = toPx(spState.speakers.left.y, 'y');
         const rkx = toPx(spState.speakers.right.x, 'x'); const rky = toPx(spState.speakers.right.y, 'y');
@@ -165,7 +157,6 @@
         ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lkx, lky); ctx.lineTo(rkx, rky); ctx.closePath(); ctx.stroke();
         ctx.restore();
 
-        // Entities
         const drawEnt = (pos, type, label) => {
             const px = toPx(pos.x, 'x');
             const py = toPx(pos.y, 'y');
@@ -213,11 +204,10 @@
         els.stats.angle.innerText = isNaN(deg) ? '--' : deg.toFixed(1) + '°';
         els.stats.angle.style.color = (deg >= 55 && deg <= 65) ? '#4ade80' : (deg >= 50 && deg <= 70 ? '#facc15' : '#f87171');
 
-        // Helper to Calc and Update a single speaker's stats
         const updateSpeakerSBIR = (spk, label) => {
-            const fFreq = 343 / (4 * spk.y); // Front wall
+            const fFreq = 343 / (4 * spk.y); 
             const xDist = spk.x < spState.room.width / 2 ? spk.x : spState.room.width - spk.x;
-            const sFreq = 343 / (4 * xDist); // Side wall
+            const sFreq = 343 / (4 * xDist); 
             
             const fmt = (f) => f > 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f);
             const sbirCol = (f) => (f >= 50 && f <= 150) ? 'bg-red-500' : 'bg-green-500';
@@ -258,16 +248,13 @@
                     const cx = (x * sx) + sx / 2;
                     const cy = (y * sy) + sy / 2;
                     
-                    // Score: 60 deg angle AND safe SBIR
                     const dx = Math.abs(cx - lx);
                     const dy = Math.abs(cy - ly);
                     const dist = Math.hypot(cx - lx, cy - ly);
                     
-                    // Angle target: ratio dx/dist approx 0.5 (sin(30))
                     const angleRatio = (dist > 0) ? dx / dist : 0;
                     const angleScore = 1 - Math.abs(angleRatio - 0.5);
 
-                    // SBIR target: Avoid 50-150Hz
                     const frontF = 343 / (4 * cy);
                     const sideDist = cx < spState.room.width / 2 ? cx : spState.room.width - cx;
                     const sideF = 343 / (4 * sideDist);
@@ -290,6 +277,7 @@
     }
 
     function updateInputs() {
+        // Fallback for NaN (empty input)
         spState.room.width = parseFloat(els.inputs.W.value) || 5.0;
         spState.room.length = parseFloat(els.inputs.L.value) || 6.0;
         spState.mirror = els.inputs.Mirror.checked;
@@ -307,25 +295,31 @@
 
     function resizeSP() {
         if (els.container && els.canvas) {
+            // Fix for iOS rendering: Don't resize if container is hidden
+            if (els.container.clientWidth === 0) return;
+            
             els.canvas.width = els.container.clientWidth;
             els.canvas.height = els.container.clientHeight;
             requestAnimationFrame(() => draw());
         }
     }
 
+    // --- INTERACTION LOGIC MATCHING ROOM-SIM ---
     const getPos = (e) => {
         const r = els.canvas.getBoundingClientRect();
-        const x = e.touches ? e.touches[0].clientX : e.clientX;
-        const y = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: x - r.left, y: y - r.top };
+        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: cx - r.left, y: cy - r.top };
     };
 
     const handleStart = (e) => {
+        // No preventDefault here to allow scrolling if we miss targets
         const p = getPos(e);
         const mx = toMeters(p.x, 'x');
         const my = toMeters(p.y, 'y');
         const hit = (obj) => Math.hypot(mx - obj.x, my - obj.y) < 0.5;
         
+        isDragging = null;
         if (hit(spState.speakers.left)) { isDragging = 'left'; spState.activeSpeaker = 'left'; }
         else if (hit(spState.speakers.right)) { isDragging = 'right'; spState.activeSpeaker = 'right'; }
         else if (hit(spState.listener)) isDragging = 'listener';
@@ -343,9 +337,11 @@
         else if (hit(spState.speakers.right)) h = 'right';
         else if (hit(spState.listener)) h = 'listener';
 
-        if (spState.hovered !== h) { spState.hovered = h; if (!isDragging) draw(); }
+        if (spState.hovered !== h) { spState.hovered = h; draw(); }
 
         if (!isDragging) return;
+        
+        // Block scrolling ONLY when dragging
         if (e.cancelable) e.preventDefault();
 
         const S = spState.speakers;
@@ -380,6 +376,8 @@
     els.canvas.addEventListener('mousedown', handleStart);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleEnd);
+    
+    // Passive: false is critical for preventDefault to work in handleMove
     els.canvas.addEventListener('touchstart', handleStart, {passive: false});
     window.addEventListener('touchmove', handleMove, {passive: false});
     window.addEventListener('touchend', handleEnd);

@@ -8,11 +8,11 @@ window.app = {
         
         // Trigger events to ensure canvas/charts redraw correctly when becoming visible
         if (viewId === 'simulator') {
-            setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 150);
         } else if (viewId === 'speaker-placement') {
-            setTimeout(() => window.dispatchEvent(new Event('resize-sp')), 50);
+            setTimeout(() => window.dispatchEvent(new Event('resize-sp')), 150);
         } else if (viewId === 'reflection-sim') {
-            setTimeout(() => window.dispatchEvent(new Event('resize-rf')), 50);
+            setTimeout(() => window.dispatchEvent(new Event('resize-rf')), 150);
         }
     }
 };
