@@ -235,8 +235,8 @@
     }
 
     function update() {
-        state.room.width = parseFloat(els.inputs.W.value);
-        state.room.length = parseFloat(els.inputs.L.value);
+        state.room.width = parseFloat(els.inputs.W.value) || 5.0;
+        state.room.length = parseFloat(els.inputs.L.value) || 6.0;
         state.options.showSide = els.toggles.Side.checked;
         state.options.showFront = els.toggles.Front.checked;
         state.options.showBack = els.toggles.Back.checked;
@@ -259,7 +259,7 @@
         if (els.container && els.canvas) {
             els.canvas.width = els.container.clientWidth;
             els.canvas.height = els.container.clientHeight;
-            draw();
+            requestAnimationFrame(() => draw());
         }
     }
 

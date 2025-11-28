@@ -10,7 +10,13 @@ body {
     overflow-x: hidden;
 }
 
-.view-section { display: none; min-height: 100vh; flex-direction: column; }
+.view-section { 
+    display: none; 
+    /* Endre min-height til å bruke dvh som fallback */
+    min-height: 100vh; 
+    min-height: 100dvh; /* Dynamic Viewport Height */
+    flex-direction: column; 
+}
 .view-section.active { display: flex; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -74,6 +80,13 @@ select.input-dark {
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
-@media (min-width: 1024px) { .desktop-lock { height: 100vh; overflow: hidden; } }
+@media (min-width: 1024px) { 
+    .desktop-lock { 
+        /* Bytt height til dvh her også */
+        height: 100vh; 
+        height: 100dvh; /* Dette fikser problemet på tablet landscape */
+        overflow: hidden; 
+    } 
+}
 
 canvas { touch-action: none; }

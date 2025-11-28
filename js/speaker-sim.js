@@ -290,8 +290,8 @@
     }
 
     function updateInputs() {
-        spState.room.width = parseFloat(els.inputs.W.value);
-        spState.room.length = parseFloat(els.inputs.L.value);
+        spState.room.width = parseFloat(els.inputs.W.value) || 5.0;
+        spState.room.length = parseFloat(els.inputs.L.value) || 6.0;
         spState.mirror = els.inputs.Mirror.checked;
         spState.mirrorMode = els.inputs.MirrorMode.value;
 
@@ -309,7 +309,7 @@
         if (els.container && els.canvas) {
             els.canvas.width = els.container.clientWidth;
             els.canvas.height = els.container.clientHeight;
-            draw();
+            requestAnimationFrame(() => draw());
         }
     }
 
