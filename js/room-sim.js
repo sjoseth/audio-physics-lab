@@ -249,59 +249,159 @@
     }
 
     function updateChart() {
-        // Removed the early return that caused the chart to stay empty
-        // if (getEl('freqChart').width === 0) return; 
-
+        // 1. Simulering og beregninger
         const res = simulate();
+        const target = getTargetCurveData();
+
+        // Lag data for "Tunnelen" (+/- 3dB)
+        const targetUpper = target.map(v => v + 3);
+        const targetLower = target.map(v => v - 3);
+
+        // Beregn offset (normalisering)
         let sumHigh = 0; let countHigh = 0;
         for (let i = 130; i < 180; i++) {
-            if (i < res.length && !isNaN(res[i])) { // Safe check
-                sumHigh += res[i];
-                countHigh++;
+            if (i < res.length && !isNaN(res[i])) {
+                sumHigh += res[i]; countHigh++;
             }
         }
         const off = (countHigh > 0) ? sumHigh / countHigh : 0;
 
+        // 2. Opprett Chart hvis den ikke finnes
         if (!myChart) {
             myChart = new Chart(ctxChart, {
                 type: 'line',
                 data: {
                     labels: Array.from({ length: 181 }, (_, i) => i + 20),
                     datasets: [
-                        { label: 'Response', data: [], borderColor: '#60a5fa', borderWidth: 2, pointRadius: 0 },
-                        { label: 'Target', data: [], borderColor: 'rgba(255,255,255,0.3)', borderDash: [5, 5], pointRadius: 0 },
-                        { label: '0dB Ref', data: new Array(181).fill(0), borderColor: '#475569', borderWidth: 1, pointRadius: 0 }
+                        // Index 0: Upper Limit (Usynlig linje, lys blå bakgrunn)
+                        {
+                            label: 'Upper Limit',
+                            data: [],
+                            borderColor: 'transparent',
+                            borderWidth: 0,
+                            pointRadius: 0,
+                            fill: 1, // Fyller ned til dataset index 1
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)', // Litt tydeligere blå
+                            order: 3 // Tegnes bak
+                        },
+                        // Index 1: Lower Limit (Usynlig linje)
+                        {
+                            label: 'Lower Limit',
+                            data: [],
+                            borderColor: 'transparent',
+                            borderWidth: 0,
+                            pointRadius: 0,
+                            fill: false,
+                            order: 3
+                        },
+                        // Index 2: Response (Hovedkurven)
+                        { 
+                            label: 'Response', 
+                            data: [], 
+                            borderColor: '#60a5fa', 
+                            borderWidth: 2, 
+                            pointRadius: 0,
+                            order: 1 // Tegnes foran
+                        },
+                        // Index 3: Target (Stiplet hvit)
+                        { 
+                            label: 'Target', 
+                            data: [], 
+                            borderColor: 'rgba(255,255,255,0.4)', 
+                            borderDash: [5, 5], 
+                            pointRadius: 0,
+                            order: 2
+                        },
+                        // Index 4: 0dB Ref
+                        { 
+                            label: '0dB Ref', 
+                            data: new Array(181).fill(0), 
+                            borderColor: '#334155', 
+                            borderWidth: 1, 
+                            pointRadius: 0,
+                            order: 4 
+                        }
                     ]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false, animation: false,
+                    responsive: true,
+                    maintainAspectRatio: false, // VIKTIG! Fikser bredden
+                    animation: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: true, labels: { color: '#94a3b8' } },
-                        tooltip: { enabled: true, backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#fff', borderColor: '#334155', borderWidth: 1, callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y.toFixed(1) + ' dB' } }
+                        legend: { 
+                            display: true, 
+                            labels: { 
+                                color: '#94a3b8',
+                                // Skjul "Limit" datasettene fra legenden
+                                filter: function(item, chart) {
+                                    return !item.text.includes('Limit');
+                                }
+                            } 
+                        },
+                        tooltip: { 
+                            enabled: true, 
+                            backgroundColor: '#1e293b', 
+                            titleColor: '#fff', 
+                            bodyColor: '#fff', 
+                            borderColor: '#334155', 
+                            borderWidth: 1, 
+                            callbacks: { 
+                                label: (c) => c.dataset.label + ': ' + c.parsed.y.toFixed(1) + ' dB' 
+                            } 
+                        }
                     },
                     scales: {
-                        y: { suggestedMin: -30, suggestedMax: 15, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
-                        x: { ticks: { maxTicksLimit: 10, color: '#64748b' }, grid: { color: '#1e293b' } }
+                        y: { 
+                            suggestedMin: -30, 
+                            suggestedMax: 15, 
+                            grid: { color: '#1e293b' }, 
+                            ticks: { color: '#64748b' } 
+                        },
+                        x: { 
+                            ticks: { maxTicksLimit: 12, color: '#64748b' }, 
+                            grid: { color: '#1e293b' } 
+                        }
                     }
                 },
+                // VIKTIG: Dette er plugin-blokken som tegner Crossover-linjen
                 plugins: [{
                     id: 'crossoverLine',
                     afterDraw: (chart) => {
                         if (chart.scales.x) {
                             const xVal = chart.scales.x.getPixelForValue(state.crossover);
-                            const ctx = chart.ctx; ctx.save(); ctx.beginPath();
-                            ctx.moveTo(xVal, chart.chartArea.top); ctx.lineTo(xVal, chart.chartArea.bottom);
-                            ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(147, 197, 253, 0.3)'; ctx.setLineDash([4, 4]); ctx.stroke();
-                            ctx.fillStyle = 'rgba(147, 197, 253, 0.6)'; ctx.textAlign = 'right'; ctx.font = '10px Inter, sans-serif';
-                            ctx.fillText(`XO ${state.crossover}Hz`, xVal - 4, chart.chartArea.top + 10); ctx.restore();
+                            const ctx = chart.ctx;
+                            const topY = chart.chartArea.top;
+                            const bottomY = chart.chartArea.bottom;
+
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.moveTo(xVal, topY);
+                            ctx.lineTo(xVal, bottomY);
+                            ctx.lineWidth = 1;
+                            ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)'; // Litt sterkere farge
+                            ctx.setLineDash([4, 4]);
+                            ctx.stroke();
+
+                            // Tekst-etikett
+                            ctx.fillStyle = 'rgba(147, 197, 253, 0.8)';
+                            ctx.textAlign = 'right';
+                            ctx.font = '10px Inter, sans-serif';
+                            ctx.fillText(`XO ${state.crossover}Hz`, xVal - 4, topY + 10);
+                            ctx.restore();
                         }
                     }
                 }]
             });
         }
-        myChart.data.datasets[0].data = res.map(v => v - off);
-        myChart.data.datasets[1].data = getTargetCurveData();
+
+        // 3. Oppdater datasettene med nye data
+        myChart.data.datasets[0].data = targetUpper;     // Upper Limit
+        myChart.data.datasets[1].data = targetLower;     // Lower Limit
+        myChart.data.datasets[2].data = res.map(v => v - off); // Response
+        myChart.data.datasets[3].data = target;          // Target
+        // 0dB Ref (index 4) trenger ikke oppdateres da den er statisk
+
         myChart.update();
     }
 
