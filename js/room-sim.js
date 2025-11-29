@@ -300,10 +300,6 @@
         const res = simulate();
         const target = getTargetCurveData();
 
-        // Lag data for "Tunnelen" (+/- 3dB)
-        const targetUpper = target.map(v => v + 3);
-        const targetLower = target.map(v => v - 3);
-
         // Beregn offset (normalisering)
         let sumHigh = 0; let countHigh = 0;
         for (let i = 130; i < 180; i++) {
@@ -313,6 +309,24 @@
         }
         const off = (countHigh > 0) ? sumHigh / countHigh : 0;
 
+        // --- ENDRET LOGIKK: SMART ROLL-OFF ---
+        const responseData = res.map((v, i) => {
+            const freq = 20 + i;
+            let val = v - off;
+            
+            // Legg på 24dB/oktav demping over XO
+            if (freq > state.crossover) {
+                const octaves = Math.log2(freq / state.crossover);
+                const attenuation = 24 * octaves;
+                val -= attenuation;
+                
+                // NYTT: Hvis verdien faller under -25dB (i forhold til target), 
+                // slutt å tegne streken. Dette hindrer at grafen zoomer for langt ut.
+                if (val < -10) return null; 
+            }
+            return val;
+        });
+
         // 2. Opprett Chart hvis den ikke finnes
         if (!myChart) {
             myChart = new Chart(ctxChart, {
@@ -320,18 +334,16 @@
                 data: {
                     labels: Array.from({ length: 181 }, (_, i) => i + 20),
                     datasets: [
-                        // Index 0: Upper Limit (Usynlig linje, lys blå bakgrunn)
                         {
                             label: 'Upper Limit',
                             data: [],
                             borderColor: 'transparent',
                             borderWidth: 0,
                             pointRadius: 0,
-                            fill: 1, // Fyller ned til dataset index 1
-                            backgroundColor: 'rgba(59, 130, 246, 0.15)', // Litt tydeligere blå
-                            order: 3 // Tegnes bak
+                            fill: 1,
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            order: 3
                         },
-                        // Index 1: Lower Limit (Usynlig linje)
                         {
                             label: 'Lower Limit',
                             data: [],
@@ -341,16 +353,16 @@
                             fill: false,
                             order: 3
                         },
-                        // Index 2: Response (Hovedkurven)
                         { 
                             label: 'Response', 
                             data: [], 
                             borderColor: '#60a5fa', 
                             borderWidth: 2, 
                             pointRadius: 0,
-                            order: 1 // Tegnes foran
+                            // Tillat brudd i linjen (hvor vi returnerer null)
+                            spanGaps: false, 
+                            order: 1 
                         },
-                        // Index 3: Target (Stiplet hvit)
                         { 
                             label: 'Target', 
                             data: [], 
@@ -359,7 +371,6 @@
                             pointRadius: 0,
                             order: 2
                         },
-                        // Index 4: 0dB Ref
                         { 
                             label: '0dB Ref', 
                             data: new Array(181).fill(0), 
@@ -372,7 +383,7 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false, // VIKTIG! Fikser bredden
+                    maintainAspectRatio: false,
                     animation: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
@@ -380,7 +391,6 @@
                             display: true, 
                             labels: { 
                                 color: '#94a3b8',
-                                // Skjul "Limit" datasettene fra legenden
                                 filter: function(item, chart) {
                                     return !item.text.includes('Limit');
                                 }
@@ -400,8 +410,11 @@
                     },
                     scales: {
                         y: { 
-                            suggestedMin: -5, 
-                            suggestedMax: 5, 
+                            // --- ENDRET: DYNAMISK SKALA IGJEN ---
+                            // Vi fjerner 'min' og 'max' for å la grafen vise dype diper.
+                            // 'suggestedMin' holder grafen stabil hvis responsen er flat.
+                            suggestedMin: -10, 
+                            suggestedMax: 10,
                             grid: { color: '#1e293b' }, 
                             ticks: { color: '#64748b' } 
                         },
@@ -411,26 +424,29 @@
                         }
                     }
                 },
-                // VIKTIG: Dette er plugin-blokken som tegner Crossover-linjen
                 plugins: [{
                     id: 'crossoverLine',
                     afterDraw: (chart) => {
-                        if (chart.scales.x) {
-                            const xVal = chart.scales.x.getPixelForValue(state.crossover);
-                            const ctx = chart.ctx;
-                            const topY = chart.chartArea.top;
-                            const bottomY = chart.chartArea.bottom;
+                        const ctx = chart.ctx;
+                        const topY = chart.chartArea.top;
+                        const bottomY = chart.chartArea.bottom;
+                        
+                        const dataIndex = state.crossover - 20;
+                        const meta = chart.getDatasetMeta(0); // Hent metadata fra dataset 0
+                        
+                        // Sjekk at punktet faktisk finnes (kan være undefined hvis XO er utenfor range)
+                        if (meta.data[dataIndex]) {
+                            const xVal = meta.data[dataIndex].x;
 
                             ctx.save();
                             ctx.beginPath();
                             ctx.moveTo(xVal, topY);
                             ctx.lineTo(xVal, bottomY);
                             ctx.lineWidth = 1;
-                            ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)'; // Litt sterkere farge
+                            ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)';
                             ctx.setLineDash([4, 4]);
                             ctx.stroke();
 
-                            // Tekst-etikett
                             ctx.fillStyle = 'rgba(147, 197, 253, 0.8)';
                             ctx.textAlign = 'right';
                             ctx.font = '10px Inter, sans-serif';
@@ -442,13 +458,15 @@
             });
         }
 
-        // 3. Oppdater datasettene med nye data
-        myChart.data.datasets[0].data = targetUpper;     // Upper Limit
-        myChart.data.datasets[1].data = targetLower;     // Lower Limit
-        myChart.data.datasets[2].data = res.map(v => v - off); // Response
-        myChart.data.datasets[3].data = target;          // Target
-        // 0dB Ref (index 4) trenger ikke oppdateres da den er statisk
+        // 3. Oppdater data
+        const targetUpper = target.map(v => v + 3);
+        const targetLower = target.map(v => v - 3);
 
+        myChart.data.datasets[0].data = targetUpper;
+        myChart.data.datasets[1].data = targetLower;
+        myChart.data.datasets[2].data = responseData;
+        myChart.data.datasets[3].data = target;
+        
         myChart.update();
     }
 
