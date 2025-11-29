@@ -19,6 +19,7 @@
         dampingQ: 10,
         crossover: 80,
         targetBoost: 0,
+        couchMode: false, // <-- NY: State for Sofa Mode
         heatmap: { active: false, visible: false, data: [] },
         hovered: null
     };
@@ -34,14 +35,15 @@
         inputs: {
             DimX: getEl('inputDimX'), DimY: getEl('inputDimY'), H: getEl('inputHeight'),
             SubZ: getEl('inputSubZ'), ListZ: getEl('inputListZ'), Q: getEl('inputQ'),
-            Crossover: getEl('inputCrossover'), Target: getEl('inputTargetCurve')
+            Crossover: getEl('inputCrossover'), Target: getEl('inputTargetCurve'),
+            Couch: getEl('checkCouchMode') // <-- NY: Checkbox input
         },
         displays: {
             Q: getEl('qValueDisplay'), Crossover: getEl('crossoverVal'),
             Sub: getEl('coordsSub'), List: getEl('coordsList'), Modes: getEl('modeList')
         },
         btnHeatmap: getEl('btnHeatmap'), legend: getEl('heatmapLegend'),
-        toggleHeatmap: getEl('toggleHeatmapSim') // NY KNAPP
+        toggleHeatmap: getEl('toggleHeatmapSim')
     };
 
     if (!els.canvas) return;
@@ -57,6 +59,7 @@
     if(els.inputs.H) els.inputs.H.value = state.room.height;
     if(els.inputs.SubZ) els.inputs.SubZ.value = state.sub.z;
     if(els.inputs.ListZ) els.inputs.ListZ.value = state.listener.z;
+    // Merk: Vi setter ikke checkbox state her, den er default false.
 
     // Listen for global updates
     window.addEventListener('app-state-updated', (e) => {
@@ -89,7 +92,8 @@
     function getTargetCurveData() {
         const data = [];
         const lowCorner = 45; const highCorner = 150;
-        for (let f = 20; f <= 200; f++) {
+        // CHANGED: 200 -> 150
+        for (let f = 20; f <= 150; f++) {
             let val = 0;
             if (state.targetBoost !== 0) {
                 if (f <= lowCorner) val = state.targetBoost;
@@ -127,30 +131,36 @@
         return modes.sort((a, b) => a.f - b.f);
     }
 
-    function simulate(sx, sy) {
+    // --- REFACTORED SIMULATE: Supports custom listener pos ---
+    function simulate(sx_in, sy_in, lx_in, ly_in) {
         const modes = getModes();
         const L = state.room.length || 5.0;
         const W = state.room.width || 4.0;
         const H = state.room.height || 2.4;
         
-        if (sx == null && els.displays.Modes) {
-            els.displays.Modes.innerHTML = modes.filter(m => m.f < 200).map(m => 
+        // Show modes only if running main simulation (no args)
+        // CHANGED: 200 -> 150
+        if (sx_in == null && els.displays.Modes) {
+            els.displays.Modes.innerHTML = modes.filter(m => m.f < 150).map(m => 
                 `<div class="flex justify-between border-b border-slate-800"><span class="text-blue-400 font-bold">${m.f.toFixed(0)}Hz</span><span class="text-slate-500">${m.axis}</span></div>`
             ).join('');
         }
 
         const d = [];
-        const sx_ = sx ?? state.sub.x;
-        const sy_ = sy ?? state.sub.y;
+        const sx = sx_in ?? state.sub.x;
+        const sy = sy_in ?? state.sub.y;
         const sz = state.sub.z;
-        const lx = state.listener.x;
-        const ly = state.listener.y;
+        
+        // Use custom listener if provided (for Couch Mode), otherwise state
+        const lx = lx_in ?? state.listener.x;
+        const ly = ly_in ?? state.listener.y;
         const lz = state.listener.z;
 
-        const dist = Math.hypot(sx_ - lx, sy_ - ly, sz - lz) || 0.1;
+        const dist = Math.hypot(sx - lx, sy - ly, sz - lz) || 0.1;
         const dirScale = 200 / (dist ** 2);
 
-        for (let f = 20; f <= 200; f++) {
+        // CHANGED: 200 -> 150
+        for (let f = 20; f <= 150; f++) {
             let r = 0; let i = 0;
             const k = (2 * Math.PI * f) / C;
 
@@ -159,7 +169,7 @@
 
             modes.forEach(m => {
                 if (m.f > 250) return;
-                const sc = Math.cos(m.nx * Math.PI * sx_ / L) * Math.cos(m.ny * Math.PI * sy_ / W) * Math.cos(m.nz * Math.PI * sz / H);
+                const sc = Math.cos(m.nx * Math.PI * sx / L) * Math.cos(m.ny * Math.PI * sy / W) * Math.cos(m.nz * Math.PI * sz / H);
                 const rc = Math.cos(m.nx * Math.PI * lx / L) * Math.cos(m.ny * Math.PI * ly / W) * Math.cos(m.nz * Math.PI * lz / H);
                 const num = sc * rc;
                 const dr = (m.f ** 2) - (f ** 2);
@@ -172,6 +182,27 @@
             d.push(20 * Math.log10(Math.sqrt(r ** 2 + i ** 2) + 1e-6));
         }
         return d;
+    }
+
+    // --- NEW: COUCH RESPONSE HELPER ---
+    function getCouchResponse(subX, subY) {
+        // 1. Calculate Center (Main)
+        const resC = simulate(subX, subY, state.listener.x, state.listener.y);
+        
+        if (!state.couchMode) return resC;
+
+        // 2. Calculate Left/Right Seats (+/- 50cm along X-axis)
+        const offset = 0.5; // 50 cm
+        
+        // Clamp so we don't listen outside walls
+        const lxL = Math.max(0.1, state.listener.x - offset);
+        const lxR = Math.min(state.room.length - 0.1, state.listener.x + offset);
+
+        const resL = simulate(subX, subY, lxL, state.listener.y);
+        const resR = simulate(subX, subY, lxR, state.listener.y);
+
+        // 3. Average the Magnitude Response
+        return resC.map((val, i) => (val + resL[i] + resR[i]) / 3);
     }
 
     function toPx(m, axis) {
@@ -257,6 +288,41 @@
 
         ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
 
+        // --- NYTT: VISUALISERING AV SOFA-PUNKTER (GHOST SEATS) ---
+        if (state.couchMode) {
+            const offset = 0.5; // 50cm
+            // Beregn posisjoner (samme logikk som i getCouchResponse)
+            const lxL = Math.max(0.1, state.listener.x - offset);
+            const lxR = Math.min(state.room.length - 0.1, state.listener.x + offset);
+            const ly = state.listener.y;
+
+            const drawGhost = (mx, my) => {
+                const px = toPx(mx, 'x'); 
+                const py = toPx(my, 'y');
+                ctx.save();
+                // Tegn stiplet linje til hovedposisjon
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(toPx(state.listener.x, 'x'), toPx(state.listener.y, 'y'));
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.stroke();
+                
+                // Tegn selve punktet (gjennomsiktig grønn)
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+                ctx.beginPath(); ctx.arc(px, py, 6, 0, 2 * Math.PI); ctx.fill();
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+                ctx.setLineDash([]);
+                ctx.stroke();
+                ctx.restore();
+            };
+
+            drawGhost(lxL, ly);
+            drawGhost(lxR, ly);
+        }
+        // ---------------------------------------------------------
+
         const drawIt = (t, x, y) => {
             const px = toPx(x, 'x'); const py = toPx(y, 'y');
             const c = t === 'sub' ? '#3b82f6' : '#22c55e';
@@ -295,33 +361,34 @@
         }
     }
 
+    // --- REFACTORED UPDATECHART: Uses getCouchResponse & Improved Scaling ---
     function updateChart() {
-        // 1. Simulering og beregninger
-        const res = simulate();
+        // 1. Simulering og beregninger (COUCH AWARE)
+        const res = getCouchResponse();
         const target = getTargetCurveData();
 
         // Beregn offset (normalisering)
         let sumHigh = 0; let countHigh = 0;
-        for (let i = 130; i < 180; i++) {
+        // CHANGED: 130-180 -> 90-130 (110-150Hz range)
+        for (let i = 90; i < 130; i++) {
             if (i < res.length && !isNaN(res[i])) {
                 sumHigh += res[i]; countHigh++;
             }
         }
         const off = (countHigh > 0) ? sumHigh / countHigh : 0;
 
-        // --- ENDRET LOGIKK: SMART ROLL-OFF ---
+        // --- SMART ROLL-OFF LOGIC ---
         const responseData = res.map((v, i) => {
             const freq = 20 + i;
             let val = v - off;
             
-            // Legg på 24dB/oktav demping over XO
+            // Apply 24dB/oct roll-off above Crossover
             if (freq > state.crossover) {
                 const octaves = Math.log2(freq / state.crossover);
                 const attenuation = 24 * octaves;
                 val -= attenuation;
                 
-                // NYTT: Hvis verdien faller under -25dB (i forhold til target), 
-                // slutt å tegne streken. Dette hindrer at grafen zoomer for langt ut.
+                // Clip values below -25dB to keep chart clean
                 if (val < -10) return null; 
             }
             return val;
@@ -332,7 +399,8 @@
             myChart = new Chart(ctxChart, {
                 type: 'line',
                 data: {
-                    labels: Array.from({ length: 181 }, (_, i) => i + 20),
+                    // CHANGED: 181 -> 131
+                    labels: Array.from({ length: 131 }, (_, i) => i + 20),
                     datasets: [
                         {
                             label: 'Upper Limit',
@@ -359,8 +427,7 @@
                             borderColor: '#60a5fa', 
                             borderWidth: 2, 
                             pointRadius: 0,
-                            // Tillat brudd i linjen (hvor vi returnerer null)
-                            spanGaps: false, 
+                            spanGaps: false, // Don't connect lines over null values
                             order: 1 
                         },
                         { 
@@ -373,7 +440,8 @@
                         },
                         { 
                             label: '0dB Ref', 
-                            data: new Array(181).fill(0), 
+                            // CHANGED: 181 -> 131
+                            data: new Array(131).fill(0), 
                             borderColor: '#334155', 
                             borderWidth: 1, 
                             pointRadius: 0,
@@ -410,11 +478,9 @@
                     },
                     scales: {
                         y: { 
-                            // --- ENDRET: DYNAMISK SKALA IGJEN ---
-                            // Vi fjerner 'min' og 'max' for å la grafen vise dype diper.
-                            // 'suggestedMin' holder grafen stabil hvis responsen er flat.
-                            suggestedMin: -10, 
-                            suggestedMax: 10,
+                            // Dynamisk skala som viser dype dips, men holder seg stabil
+                            suggestedMin: -5, 
+                            suggestedMax: 5,
                             grid: { color: '#1e293b' }, 
                             ticks: { color: '#64748b' } 
                         },
@@ -424,6 +490,7 @@
                         }
                     }
                 },
+                // Plugin to draw Crossover Line correctly
                 plugins: [{
                     id: 'crossoverLine',
                     afterDraw: (chart) => {
@@ -431,10 +498,10 @@
                         const topY = chart.chartArea.top;
                         const bottomY = chart.chartArea.bottom;
                         
+                        // Calc index based on freq (20Hz offset)
                         const dataIndex = state.crossover - 20;
-                        const meta = chart.getDatasetMeta(0); // Hent metadata fra dataset 0
+                        const meta = chart.getDatasetMeta(0);
                         
-                        // Sjekk at punktet faktisk finnes (kan være undefined hvis XO er utenfor range)
                         if (meta.data[dataIndex]) {
                             const xVal = meta.data[dataIndex].x;
 
@@ -472,6 +539,7 @@
 
     function upd() { resizeRoomSim(); }
 
+    // --- REFACTORED GENERATE HEATMAP: Uses Couch Response & Weighted Score ---
     function generateHeatmap() {
         state.heatmap.active = true;
         state.heatmap.visible = true;
@@ -486,32 +554,33 @@
 
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
-                // Her er linjene som manglet:
                 const cx = (x * sx) + sx / 2;
                 const cy = (y * sy) + sy / 2;
                 
-                const res = simulate(cx, cy);
+                // USE COUCH RESPONSE HERE
+                const res = getCouchResponse(cx, cy);
                 
                 // Calculate average offset (normalize level)
                 let sh = 0; let c = 0;
-                for (let i = 130; i < 180; i++) { if(!isNaN(res[i])){sh += res[i]; c++;} }
+                // CHANGED: 130-180 -> 90-130
+                for (let i = 90; i < 130; i++) { if(!isNaN(res[i])){sh += res[i]; c++;} }
                 const off = sh / c;
 
                 let err = 0; 
                 let mv = Infinity; // Minimum value tracker
-                const limit = Math.min(180, state.crossover - 20);
+                // CHANGED: 180 -> 130
+                const limit = Math.min(130, state.crossover - 20);
 
-                // --- NEW ALGORITHM START ---
+                // Asymmetric scoring: Penalize dips more than peaks
                 for (let i = 0; i <= limit; i++) {
                     const v = res[i] - off;
                     const diff = v - tgt[i];
                     
-                    // Asymmetric weighting:
                     if (diff < 0) {
-                        // Dip: Penalize heavily (2x) because EQ cannot fix cancellations
+                        // Dip: Penalize heavily (2x)
                         err += (diff * diff) * 2.0;
                     } else {
-                        // Peak: Penalize lightly (0.5x) because EQ can reduce peaks
+                        // Peak: Penalize lightly (0.5x)
                         err += (diff * diff) * 0.5;
                     }
 
@@ -520,10 +589,9 @@
                 
                 // Final Score Calculation
                 const weightedRMSE = Math.sqrt(err / (limit + 1));
-                const deepNullPenalty = Math.max(0, -mv - 10) * 0.5; // Penalize if dips go below -10dB relative
+                const deepNullPenalty = Math.max(0, -mv - 10) * 0.5; // Extra penalty for deep nulls
                 
                 const sc = 1000 / (weightedRMSE + deepNullPenalty + 0.1);
-                // --- NEW ALGORITHM END ---
 
                 if (sc < min) min = sc;
                 if (sc > max) max = sc;
@@ -539,7 +607,6 @@
 
 
     // --- REFACTORED UPDATE LOGIC ---
-    
     function updateStateFromDOM(keepHeatmap = false) {
         state.room.length = parseFloat(els.inputs.DimX.value) || 5.0;
         state.room.width = parseFloat(els.inputs.DimY.value) || 4.0;
@@ -549,9 +616,12 @@
         state.dampingQ = parseFloat(els.inputs.Q.value) || 10;
         state.crossover = parseInt(els.inputs.Crossover.value) || 80;
         state.targetBoost = parseInt(els.inputs.Target.value) || 0;
+        
+        // Couch Mode update not needed here as it has its own listener, but sync state just in case
+        if(els.inputs.Couch) state.couchMode = els.inputs.Couch.checked;
 
         els.displays.Q.innerText = state.dampingQ;
-        els.displays.Crossover.innerText = state.crossover + " Hz";
+        els.displays.Crossover.innerText = state.crossover; // FIX: No "HzHz" bug
 
         // Boundaries
         const pd = 0.1;
@@ -592,6 +662,16 @@
 
     // Listeners for "Non-Destructive" changes (Keeps Heatmap)
     els.inputs.SubZ.addEventListener('input', () => updateStateFromDOM(true));
+
+    // NEW: Listener for Couch Mode
+    if (els.inputs.Couch) {
+        els.inputs.Couch.addEventListener('change', (e) => {
+            state.couchMode = e.target.checked;
+            updateChart(); // Live update of graph
+            draw();
+            // If heatmap is active, user needs to regenerate it manually to see effect
+        });
+    }
 
     // Drag Logic
     const getPos = (e) => {
