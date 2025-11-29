@@ -125,7 +125,12 @@
         <div class="flex-1 flex flex-col lg:flex-row bg-[#0f172a] lg:overflow-hidden">
             <aside class="w-full lg:w-80 flex-none bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 order-2 lg:order-1 lg:overflow-y-auto">
                 <div class="control-card p-4 rounded-xl border-blue-900/30 bg-blue-950/10">
-                    <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-blue-400">OPTIMIZATION</h2><div class="relative group"><span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span><div class="tooltip-content text-slate-300 right-0">Simulates room response to find the smoothest bass. "Target" shows ideal Harman curve.</div></div></div>
+                    <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-blue-400">OPTIMIZATION</h2><div class="relative group"><span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span><div class="tooltip-content text-slate-300 right-0">Simulates room response to find the smoothest bass. "Target" shows ideal Harman curve.
+                        Green zones indicate minimal acoustic cancellations (dips). 
+                <br><br>
+                <span class="text-xs text-slate-400">Note: Peaks are penalized less than dips, as peaks can be corrected with EQ.</span>
+            </div>
+                    </div></div>
                     <div class="space-y-2">
                         <div><label class="text-xs text-slate-400">Target Curve</label><select id="inputTargetCurve" class="input-dark w-full rounded p-1 text-xs"><option value="0">Flat (0dB)</option><option value="3">Harman (+3dB)</option><option value="6">Harman (+6dB)</option><option value="9">Harman (+9dB)</option><option value="12">Harman (+12dB)</option></select></div>
                         <div><label class="text-xs text-slate-400">Crossover: <span id="crossoverVal">80</span>Hz</label><input type="range" id="inputCrossover" min="40" max="150" value="80" class="range-slider w-full"></div>

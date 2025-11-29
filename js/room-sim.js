@@ -468,35 +468,57 @@
 
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
+                // Her er linjene som manglet:
                 const cx = (x * sx) + sx / 2;
                 const cy = (y * sy) + sy / 2;
+                
                 const res = simulate(cx, cy);
                 
+                // Calculate average offset (normalize level)
                 let sh = 0; let c = 0;
                 for (let i = 130; i < 180; i++) { if(!isNaN(res[i])){sh += res[i]; c++;} }
                 const off = sh / c;
 
-                let err = 0; let avg = 0; let mv = Infinity;
+                let err = 0; 
+                let mv = Infinity; // Minimum value tracker
                 const limit = Math.min(180, state.crossover - 20);
 
+                // --- NEW ALGORITHM START ---
                 for (let i = 0; i <= limit; i++) {
                     const v = res[i] - off;
-                    const e = v - tgt[i];
-                    err += e * e;
+                    const diff = v - tgt[i];
+                    
+                    // Asymmetric weighting:
+                    if (diff < 0) {
+                        // Dip: Penalize heavily (2x) because EQ cannot fix cancellations
+                        err += (diff * diff) * 2.0;
+                    } else {
+                        // Peak: Penalize lightly (0.5x) because EQ can reduce peaks
+                        err += (diff * diff) * 0.5;
+                    }
+
                     if (v < mv) mv = v;
-                    avg += v;
                 }
-                const sc = 1000 / (Math.sqrt(err / (limit + 1)) + (Math.max(0, (avg / (limit + 1) - mv) - 10) * 0.5) + 0.1);
+                
+                // Final Score Calculation
+                const weightedRMSE = Math.sqrt(err / (limit + 1));
+                const deepNullPenalty = Math.max(0, -mv - 10) * 0.5; // Penalize if dips go below -10dB relative
+                
+                const sc = 1000 / (weightedRMSE + deepNullPenalty + 0.1);
+                // --- NEW ALGORITHM END ---
+
                 if (sc < min) min = sc;
                 if (sc > max) max = sc;
                 state.heatmap.data.push({ x: cx, y: cy, w: sx, h: sy, val: sc });
             }
         }
+        
         const diff = max - min;
         state.heatmap.data.forEach(d => d.norm = diff === 0 ? 0 : (d.val - min) / diff);
         els.legend.classList.remove('hidden');
         upd();
     }
+
 
     // --- REFACTORED UPDATE LOGIC ---
     
