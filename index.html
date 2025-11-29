@@ -14,18 +14,28 @@
 
     <div id="view-dashboard" class="view-section active">
         <header class="bg-slate-900 border-b border-slate-800 py-12 flex-none">
-            <div class="max-w-6xl mx-auto px-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <h1 class="text-4xl font-extrabold text-white tracking-tight">
-                        Audio <span class="text-blue-500">Physics</span> Lab
-                    </h1>
-                    <span class="bg-blue-600/20 text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-500/30 uppercase tracking-wide">Beta</span>
-                </div>
-                <p class="text-slate-400 text-lg max-w-2xl">
-                    Precision tools for acoustic analysis, placement optimization, and room tuning.
-                </p>
+    <div class="max-w-6xl mx-auto px-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-4">
+            <div class="flex items-center gap-3">
+                <h1 class="text-4xl font-extrabold text-white tracking-tight">
+                    Audio <span class="text-blue-500">Physics</span> Lab
+                </h1>
+                <span class="bg-blue-600/20 text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-500/30 uppercase tracking-wide">Beta</span>
             </div>
-        </header>
+
+            <button id="btnShareConfig" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg border border-slate-700 transition-all text-sm font-medium group">
+                <svg class="w-4 h-4 text-blue-400 group-hover:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                <span id="shareBtnText">Share Configuration</span>
+            </button>
+        </div>
+        
+        <p class="text-slate-400 text-lg max-w-2xl">
+            Precision tools for acoustic analysis, placement optimization, and room tuning.
+        </p>
+    </div>
+</header>
 
         <main class="flex-1 max-w-6xl mx-auto px-6 py-12 w-full">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

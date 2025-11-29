@@ -1,27 +1,22 @@
 /**
  * js/state-manager.js
  * Central State Management for Audio Physics Lab
- * Handles synchronization between tools and LocalStorage persistence.
+ * UPDATED: Added URL Sharing capabilities
  */
 (function() {
     const STORAGE_KEY = 'audio_lab_project_v1';
     
-    // Default values if nothing is stored
     const defaultState = {
         room: { width: 5.0, length: 6.0, height: 2.4 },
-        listener: { x: 2.5, y: 3.5, z: 1.1 }, // Z is ear height
+        listener: { x: 2.5, y: 3.5, z: 1.1 },
         speakers: {
-            left: { x: 1.25, y: 1.0, z: 1.0 }, // Z is acoustic center
+            left: { x: 1.25, y: 1.0, z: 1.0 },
             right: { x: 3.75, y: 1.0, z: 1.0 },
             sub: { x: 1.25, y: 0.5, z: 0.3 }
         },
-        // For future imperial unit support
-        settings: {
-            unit: 'metric' // 'metric' or 'imperial'
-        }
+        settings: { unit: 'metric' }
     };
 
-    // Helper for deep merging objects to ensure we don't overwrite missing keys
     function deepMerge(target, source) {
         for (const key in source) {
             if (source[key] instanceof Object && key in target) {
@@ -34,17 +29,31 @@
 
     class StateManager {
         constructor() {
-            this.state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
+            this.state = JSON.parse(JSON.stringify(defaultState));
             this.init();
         }
 
         init() {
+            // 1. Check for URL parameters first (Share Link)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('r')) { // 'r' = room check
+                try {
+                    this.loadFromUrl(urlParams);
+                    console.log('Audio Lab: State loaded from URL');
+                    // Clean up URL to look nice, but save the imported state to local storage
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    this.save();
+                    return; 
+                } catch (e) {
+                    console.warn('Audio Lab: Invalid URL params, falling back to storage', e);
+                }
+            }
+
+            // 2. Fallback to LocalStorage
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 try {
-                    const parsed = JSON.parse(saved);
-                    // Merge saved data with defaults (handles new fields in future updates)
-                    this.state = deepMerge(this.state, parsed);
+                    this.state = deepMerge(this.state, JSON.parse(saved));
                     console.log('Audio Lab: State loaded from LocalStorage');
                 } catch (e) {
                     console.error('Audio Lab: Corrupt state reset');
@@ -52,34 +61,67 @@
             }
         }
 
-        get() {
-            return this.state;
+        // --- NEW: URL SERIALIZATION LOGIC ---
+        
+        getShareableUrl() {
+            const s = this.state;
+            const p = new URLSearchParams();
+            
+            // Helper to compress array of numbers to "1.2,3.4,5.6"
+            const join = (...vals) => vals.map(v => Number(v).toFixed(2)).join(',');
+
+            // Short keys to keep URL length down
+            p.set('r', join(s.room.width, s.room.length, s.room.height));
+            p.set('l', join(s.listener.x, s.listener.y, s.listener.z));
+            p.set('sl', join(s.speakers.left.x, s.speakers.left.y, s.speakers.left.z));
+            p.set('sr', join(s.speakers.right.x, s.speakers.right.y, s.speakers.right.z));
+            p.set('sb', join(s.speakers.sub.x, s.speakers.sub.y, s.speakers.sub.z));
+
+            return `${window.location.origin}${window.location.pathname}?${p.toString()}`;
         }
 
-        /**
-         * Updates part of the state and notifies listeners
-         * @param {Object} partialState - e.g. { room: { width: 5.5 } }
-         */
+        loadFromUrl(params) {
+            const parse = (key) => params.get(key).split(',').map(Number);
+
+            if (params.has('r')) {
+                const [w, l, h] = parse('r');
+                this.state.room = { width: w, length: l, height: h };
+            }
+            if (params.has('l')) {
+                const [x, y, z] = parse('l');
+                this.state.listener = { x, y, z };
+            }
+            if (params.has('sl')) {
+                const [x, y, z] = parse('sl');
+                this.state.speakers.left = { x, y, z };
+            }
+            if (params.has('sr')) {
+                const [x, y, z] = parse('sr');
+                this.state.speakers.right = { x, y, z };
+            }
+            if (params.has('sb')) {
+                const [x, y, z] = parse('sb');
+                this.state.speakers.sub = { x, y, z };
+            }
+        }
+        // ------------------------------------
+
+        get() { return this.state; }
+
         update(partialState) {
             this.state = deepMerge(this.state, partialState);
             this.save();
-            
-            // Dispatch event for other tools to react
-            window.dispatchEvent(new CustomEvent('app-state-updated', { 
-                detail: this.state 
-            }));
+            window.dispatchEvent(new CustomEvent('app-state-updated', { detail: this.state }));
         }
 
         save() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
         }
 
-        // Utility to calculate 3D distance between two points
         getDistance(p1, p2) {
             return Math.hypot(p1.x - p2.x, p1.y - p2.y, (p1.z || 0) - (p2.z || 0));
         }
     }
 
-    // Initialize globally
     window.appState = new StateManager();
 })();
