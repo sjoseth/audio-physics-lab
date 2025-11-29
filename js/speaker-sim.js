@@ -12,7 +12,9 @@
         mirrorMode: 'room',
         hovered: null,
         activeSpeaker: 'left',
-        heatmap: { active: false, visible: false, data: [] }
+        overlay: 'none', 
+        heatmap: { active: false, visible: false, data: [] },
+        sbirChart: null 
     };
     let isDragging = null;
 
@@ -20,11 +22,13 @@
     const els = {
         canvas: getEl('spCanvas'),
         container: getEl('spCanvasContainer'),
+        sbirCanvas: getEl('sbirChart'), 
         inputs: { 
             W: getEl('spInputW'), 
             L: getEl('spInputL'), 
             Mirror: getEl('spInputMirror'), 
-            MirrorMode: getEl('spMirrorMode') 
+            MirrorMode: getEl('spMirrorMode'),
+            Overlay: getEl('spOverlay')
         },
         stats: { 
             angle: getEl('spAngleVal'), 
@@ -37,7 +41,7 @@
         },
         btnHeatmap: getEl('btnSpHeatmap'), 
         legend: getEl('spHeatmapLegend'),
-        toggleHeatmap: getEl('toggleHeatmapSp') // NY KNAPP
+        toggleHeatmap: getEl('toggleHeatmapSp')
     };
 
     if (!els.canvas) return;
@@ -75,6 +79,11 @@
         const dim = axis === 'x' ? els.canvas.width : els.canvas.height;
         const roomDim = axis === 'x' ? spState.room.width : spState.room.length;
         return Math.max(0, Math.min(roomDim, ((px - pad) / (dim - 2 * pad)) * roomDim));
+    }
+
+    // Helper: Distance between two points {x, y}
+    function getDist(p1, p2) {
+        return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
     function drawArrowLine(x1, y1, x2, y2) {
@@ -153,6 +162,62 @@
 
         const W = spState.room.width;
         const L = spState.room.length;
+        
+        // --- DRAW GHOST SPEAKERS & LISTENER (METHOD OVERLAY) ---
+        if (spState.overlay !== 'none') {
+            let gx, gy, ly_ghost;
+            
+            const drawGhostSpk = (x, y, name) => {
+                const px = toPx(x, 'x'); const py = toPx(y, 'y');
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.setLineDash([4, 4]);
+                ctx.lineWidth = 1;
+                ctx.strokeRect(px - 12, py - 12, 24, 24);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.font = '9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(name, px, py - 16);
+                ctx.restore();
+            };
+
+            const drawGhostLis = (y, name) => {
+                const px = toPx(W / 2, 'x');
+                const py = toPx(y, 'y');
+                ctx.save();
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)'; 
+                ctx.setLineDash([4, 4]);
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.stroke();
+                
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.6)';
+                ctx.font = '9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(name, px, py + 20);
+                ctx.restore();
+            };
+
+            if (spState.overlay === 'cardas') {
+                gx = W * 0.276;
+                gy = W * 0.447;
+                drawGhostSpk(gx, gy, 'Cardas');
+                drawGhostSpk(W - gx, gy, 'Cardas');
+
+                const spread = W - (2 * gx);
+                const height = spread * Math.sin(Math.PI / 3); 
+                ly_ghost = gy + height;
+                drawGhostLis(ly_ghost, 'Cardas Ref');
+
+            } else if (spState.overlay === 'thirds') {
+                gx = W / 3;
+                gy = L / 3;
+                drawGhostSpk(gx, gy, '1/3');
+                drawGhostSpk(W - gx, gy, '1/3');
+                ly_ghost = L * (2/3);
+                drawGhostLis(ly_ghost, '2/3 Ref');
+            }
+        }
+        
         const li = W / 4; const lo = W / 3; const ri = W - W / 4; const ro = W - W / 3;
 
         ctx.save();
@@ -217,13 +282,130 @@
         updateStats();
     }
 
+    // --- SBIR Kalkulator (IMAGE SOURCE METHOD) ---
+    function calculateSBIRResponse(dDirect, dFrontRefl, dSideRefl) {
+        const data = [];
+        const c = 343;
+        const reflectionCoeff = 0.85;
+
+        for (let f = 40; f <= 500; f += 2) {
+            const k = (2 * Math.PI * f) / c;
+            
+            // Direkte lyd (Fase 0)
+            let r = 1.0; 
+            let i = 0.0;
+
+            // Frontvegg Refleksjon
+            const pathDiffFront = dFrontRefl - dDirect;
+            const thetaFront = k * pathDiffFront; 
+            r += reflectionCoeff * Math.cos(thetaFront);
+            i += reflectionCoeff * Math.sin(thetaFront);
+
+            // Sidevegg Refleksjon
+            const pathDiffSide = dSideRefl - dDirect;
+            const thetaSide = k * pathDiffSide;
+            r += reflectionCoeff * Math.cos(thetaSide);
+            i += reflectionCoeff * Math.sin(thetaSide);
+
+            // Magnitude dB
+            const mag = Math.sqrt(r * r + i * i);
+            let db = 20 * Math.log10(mag);
+            
+            data.push(Math.max(-25, db)); 
+        }
+        return data;
+    }
+
+    // --- NY Hjelpefunksjon: Beregn kanselleringsfrekvens basert på path difference ---
+    function getCancellationFreq(direct, reflected) {
+        const diff = reflected - direct;
+        if (diff <= 0) return 0;
+        // Kansellering skjer når path diff = 1/2 bølgelengde (lambda/2)
+        // lambda = 2 * diff
+        // f = c / lambda = 343 / (2 * diff)
+        return 343 / (2 * diff);
+    }
+
+    // --- Initialiser SBIR Chart med Average ---
+    function initSBIRChart() {
+        if (!els.sbirCanvas || spState.sbirChart) return;
+        
+        const ctx = els.sbirCanvas.getContext('2d');
+        const labels = [];
+        for(let f=40; f<=500; f+=2) labels.push(f);
+
+        spState.sbirChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Left',
+                        data: [],
+                        borderColor: '#3b82f6', 
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Right',
+                        data: [],
+                        borderColor: '#ef4444', 
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        borderDash: [5, 5]
+                    },
+                    {
+                        label: 'Average',
+                        data: [],
+                        borderColor: '#a855f7', 
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        borderDash: [2, 2],
+                        order: 0 
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 }, 
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: '#94a3b8' } },
+                    tooltip: { 
+                        backgroundColor: '#1e293b',
+                        callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} dB` }
+                    }
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#64748b', maxTicksLimit: 10 }, 
+                        grid: { color: '#1e293b' },
+                        title: { display: true, text: 'Frequency (Hz)', color: '#475569' }
+                    },
+                    y: { 
+                        suggestedMin: -20, 
+                        suggestedMax: 6, 
+                        grid: { color: '#1e293b' }, 
+                        ticks: { color: '#64748b' } 
+                    }
+                }
+            }
+        });
+    }
+
     function updateStats() {
         const sL = spState.speakers.left;
         const sR = spState.speakers.right;
         const lis = spState.listener;
-        const spread = Math.hypot(sR.x - sL.x, sR.y - sL.y);
-        const dL = Math.hypot(lis.x - sL.x, lis.y - sL.y);
-        const dR = Math.hypot(lis.x - sR.x, lis.y - sR.y);
+        const W = spState.room.width; 
+
+        const spread = getDist(sL, sR);
+        const dL = getDist(sL, lis);
+        const dR = getDist(sR, lis);
         const avgD = (dL + dR) / 2;
         const deg = (2 * Math.asin(spread / (2 * avgD))) * (180 / Math.PI);
 
@@ -232,11 +414,27 @@
         els.stats.angle.innerText = isNaN(deg) ? '--' : deg.toFixed(1) + '°';
         els.stats.angle.style.color = (deg >= 55 && deg <= 65) ? '#4ade80' : (deg >= 50 && deg <= 70 ? '#facc15' : '#f87171');
 
-        const updateSpeakerSBIR = (spk, label) => {
-            const fFreq = 343 / (4 * spk.y); 
-            const xDist = spk.x < spState.room.width / 2 ? spk.x : spState.room.width - spk.x;
-            const sFreq = 343 / (4 * xDist); 
+        // --- OPPGRADERT: Tekstboksene bruker nå Image Source Method (Lytter-posisjon) ---
+        const updateSpeakerSBIR_Text = (spk, label, directDist) => {
             
+            // 1. Beregn Front SBIR (Speilpunkt: {x, -y})
+            const ghostFront = { x: spk.x, y: -spk.y };
+            const distReflFront = getDist(ghostFront, lis);
+            const fFreq = getCancellationFreq(directDist, distReflFront);
+
+            // 2. Beregn Side SBIR
+            let ghostSide;
+            if (label === 'left') {
+                // Venstre vegg (x=0): Speilpunkt {-x, y}
+                ghostSide = { x: -spk.x, y: spk.y };
+            } else {
+                // Høyre vegg (x=W): Speilpunkt {2W - x, y}
+                ghostSide = { x: (2 * W) - spk.x, y: spk.y };
+            }
+            const distReflSide = getDist(ghostSide, lis);
+            const sFreq = getCancellationFreq(directDist, distReflSide);
+            
+            // Formatering og farger
             const fmt = (f) => f > 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f);
             const sbirCol = (f) => (f >= 50 && f <= 150) ? 'bg-red-500' : 'bg-green-500';
             const sbirPct = (f) => Math.max(0, Math.min(100, ((f - 20) / 280) * 100));
@@ -252,10 +450,27 @@
                 els.stats.rFrontBar.className = `h-1 rounded ${sbirCol(fFreq)}`; els.stats.rFrontBar.style.width = sbirPct(fFreq)+'%';
                 els.stats.rSideBar.className = `h-1 rounded ${sbirCol(sFreq)}`; els.stats.rSideBar.style.width = sbirPct(sFreq)+'%';
             }
+
+            return { distReflFront, distReflSide }; // Returner for bruk i graf
         };
 
-        updateSpeakerSBIR(spState.speakers.left, 'left');
-        updateSpeakerSBIR(spState.speakers.right, 'right');
+        const sbirL = updateSpeakerSBIR_Text(spState.speakers.left, 'left', dL);
+        const sbirR = updateSpeakerSBIR_Text(spState.speakers.right, 'right', dR);
+
+        // --- Oppdater Graf med Image Source Method ---
+        if (!spState.sbirChart) initSBIRChart();
+        
+        if (spState.sbirChart) {
+            const dataL = calculateSBIRResponse(dL, sbirL.distReflFront, sbirL.distReflSide);
+            const dataR = calculateSBIRResponse(dR, sbirR.distReflFront, sbirR.distReflSide);
+            const dataAvg = dataL.map((val, i) => (val + dataR[i]) / 2);
+
+            spState.sbirChart.data.datasets[0].data = dataL;
+            spState.sbirChart.data.datasets[1].data = dataR;
+            spState.sbirChart.data.datasets[2].data = dataAvg;
+            
+            spState.sbirChart.update('none');
+        }
     }
 
     function generateHeatmap() {
@@ -315,6 +530,7 @@
         spState.room.length = parseFloat(els.inputs.L.value) || 6.0;
         spState.mirror = els.inputs.Mirror.checked;
         spState.mirrorMode = els.inputs.MirrorMode.value;
+        spState.overlay = els.inputs.Overlay.value;
 
         window.appState.update({
             room: { width: spState.room.width, length: spState.room.length },
@@ -333,7 +549,6 @@
             els.legend.classList.add('hidden');
         }
         
-        // Clamping logic...
         const clamp = (val, max) => Math.max(0.1, Math.min(val, max - 0.1));
         spState.speakers.left.x = clamp(spState.speakers.left.x, spState.room.width);
         spState.speakers.left.y = clamp(spState.speakers.left.y, spState.room.length);
@@ -363,7 +578,7 @@
 
     // Listeners
     [els.inputs.W, els.inputs.L].forEach(e => e.addEventListener('input', () => updateStateFromDOM(false)));
-    [els.inputs.Mirror, els.inputs.MirrorMode].forEach(e => e.addEventListener('change', () => updateStateFromDOM(true)));
+    [els.inputs.Mirror, els.inputs.MirrorMode, els.inputs.Overlay].forEach(e => e.addEventListener('change', () => updateStateFromDOM(true)));
 
     // Drag
     const getPos = (e) => {
@@ -407,7 +622,7 @@
 
         if (isDragging === 'listener') {
             L.x = mx; L.y = my;
-            updateStateFromDOM(false); // RESET Heatmap
+            updateStateFromDOM(false); 
         } else {
             const active = spState.speakers[isDragging];
             const other = isDragging === 'left' ? S.right : S.left;
@@ -425,7 +640,7 @@
                 other.x = Math.max(pd, Math.min(other.x, spState.room.width - pd));
                 other.y = Math.max(pd, Math.min(other.y, spState.room.length - pd));
             }
-            updateStateFromDOM(true); // KEEP Heatmap
+            updateStateFromDOM(true);
         }
     };
 

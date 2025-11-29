@@ -220,7 +220,16 @@
                     <div id="spHeatmapLegend" class="hidden"><div class="flex justify-between text-[10px] text-slate-400"><span>Poor</span><span>Optimal</span></div><div class="h-1 bg-gradient-to-r from-red-500 to-green-500 rounded"></div></div>
                 </div>
                 <div class="control-card p-4 rounded-xl border-red-900/30 bg-red-950/10">
-                    <div class="flex justify-between mb-2"><h2 class="text-xs font-bold text-red-400">SBIR DIPS (Active Speaker)</h2><div class="relative group"><span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span><div class="tooltip-content text-slate-300 right-0">Cancellations due to wall distance. Avoid 50-150Hz.</div></div></div>
+                    <div class="flex justify-between mb-2">
+    <h2 class="text-xs font-bold text-red-400">WALL PROXIMITY (SBIR)</h2>
+    <div class="relative group">
+        <span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span>
+        <div class="tooltip-content text-slate-300 right-0 w-64">
+            <p class="mb-2"><strong>Theoretical Cancellation:</strong> Calculates the frequency where the wall reflection is 180° out of phase (1/4 wavelength).</p>
+            <p class="text-slate-400">Use this to identify <u>WHICH</u> wall is causing a dip in the bottom graph. If the graph is flat but this is red, the walls are cancelling each other out (good!).</p>
+        </div>
+    </div>
+</div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="space-y-2 text-[10px]">
                             <div class="text-blue-400 font-bold text-center border-b border-slate-700 pb-1">LEFT</div>
@@ -243,7 +252,25 @@
                     <div class="space-y-2 pt-2 border-t border-slate-700/50">
                         <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Link Speakers</label><input type="checkbox" id="spInputMirror" checked class="accent-blue-500"></div>
                         <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Mirror Around</label><select id="spMirrorMode" class="input-dark text-[10px] rounded p-1 w-24"><option value="room">Room Center</option><option value="listener">Listener</option></select></div>
-                    </div>
+                        
+                        <div class="flex justify-between items-center pt-2 mt-2 border-t border-slate-700/50">
+    <div class="flex items-center gap-2">
+        <label class="text-xs text-slate-300">Method Overlay</label>
+        <div class="relative group">
+            <span class="tooltip-trigger text-slate-500 text-[10px] cursor-help border border-slate-600 rounded-full w-3 h-3 flex items-center justify-center">?</span>
+            <div class="tooltip-content text-slate-300 right-0 bottom-6 w-56">
+                <p class="mb-1"><strong>Cardas:</strong> Golden Ratio placement. Often gives the most neutral bass response in rectangular rooms.</p>
+                <p><strong>Rule of Thirds:</strong> Speakers at 1/3 and listener at 2/3. Excellent for soundstage depth.</p>
+            </div>
+        </div>
+    </div>
+    <select id="spOverlay" class="input-dark text-[10px] rounded p-1 w-32">
+        <option value="none">None</option>
+        <option value="cardas">Cardas (Golden)</option>
+        <option value="thirds">Rule of Thirds</option>
+    </select>
+</div>
+                        </div>
                 </div>
                 <div class="control-card p-4 rounded-xl">
                     <div class="space-y-1 text-xs">
@@ -254,13 +281,30 @@
                 </div>
             </aside>
             <main class="flex-1 flex flex-col min-h-0 relative order-1 lg:order-2">
-                <div class="w-full h-full min-h-[45vh] lg:min-h-0 relative bg-[#0b101e] overflow-hidden cursor-crosshair" id="spCanvasContainer">
-                <div class="w-full aspect-square lg:aspect-auto lg:h-full relative bg-[#0b101e] overflow-hidden cursor-crosshair" id="spCanvasContainer">
+                <div class="flex-1 relative bg-[#0b101e] overflow-hidden cursor-crosshair" id="spCanvasContainer">
                     <div class="absolute top-4 left-4 z-10 glass-panel px-2 py-1 rounded border border-slate-700/50 flex gap-2 pointer-events-none select-none">
                         <div class="flex items-center gap-1"><div class="w-3 h-3 bg-blue-500 rounded-sm"></div><span class="text-xs text-slate-300">Speaker</span></div>
                         <div class="flex items-center gap-1"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-xs text-slate-300">Listener</span></div>
                     </div>
                     <canvas id="spCanvas" class="block w-full h-full"></canvas>
+                </div>
+                <div class="h-64 border-t border-slate-800 bg-slate-900 p-2 relative flex-none">
+    
+    <div class="absolute top-3 left-12 z-10 pointer-events-none">
+        <div class="flex items-center gap-2 bg-slate-900/80 backdrop-blur px-2 py-1 rounded border border-slate-700/50">
+            <span class="text-[10px] font-bold text-slate-300">Total Frequency Response</span>
+            <div class="flex items-center gap-2 text-[9px]">
+                <span class="text-blue-400">● Left</span>
+                <span class="text-red-400">● Right</span>
+                <span class="text-purple-400 font-bold">-- Avg</span>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="sbirChart"></canvas>
+</div>
+                <div class="h-64 border-t border-slate-800 bg-slate-900 p-2 relative flex-none">
+                    <canvas id="sbirChart"></canvas>
                 </div>
             </main>
         </div>
