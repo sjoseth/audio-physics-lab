@@ -1,13 +1,18 @@
 (function() {
+    const global = window.appState.get();
+
     const spState = {
-        room: { width: 5.0, length: 6.0 },
-        speakers: { left: { x: 1.25, y: 1.5 }, right: { x: 3.75, y: 1.5 } },
-        listener: { x: 2.5, y: 4.0 },
+        room: { width: global.room.width, length: global.room.length },
+        speakers: { 
+            left: { x: global.speakers.left.x, y: global.speakers.left.y }, 
+            right: { x: global.speakers.right.x, y: global.speakers.right.y } 
+        },
+        listener: { x: global.listener.x, y: global.listener.y },
         mirror: true,
         mirrorMode: 'room',
         hovered: null,
         activeSpeaker: 'left',
-        heatmap: { active: false, data: [] }
+        heatmap: { active: false, visible: false, data: [] }
     };
     let isDragging = null;
 
@@ -31,11 +36,33 @@
             rFrontBar: getEl('sbirRFrontBar'), rSideBar: getEl('sbirRSideBar')
         },
         btnHeatmap: getEl('btnSpHeatmap'), 
-        legend: getEl('spHeatmapLegend')
+        legend: getEl('spHeatmapLegend'),
+        toggleHeatmap: getEl('toggleHeatmapSp') // NY KNAPP
     };
 
     if (!els.canvas) return;
     const ctx = els.canvas.getContext('2d');
+
+    // Sync init
+    els.inputs.W.value = spState.room.width;
+    els.inputs.L.value = spState.room.length;
+
+    window.addEventListener('app-state-updated', (e) => {
+        const s = e.detail;
+        spState.room.width = s.room.width;
+        spState.room.length = s.room.length;
+        spState.speakers.left.x = s.speakers.left.x;
+        spState.speakers.left.y = s.speakers.left.y;
+        spState.speakers.right.x = s.speakers.right.x;
+        spState.speakers.right.y = s.speakers.right.y;
+        spState.listener.x = s.listener.x;
+        spState.listener.y = s.listener.y;
+
+        if(document.activeElement !== els.inputs.W) els.inputs.W.value = spState.room.width;
+        if(document.activeElement !== els.inputs.L) els.inputs.L.value = spState.room.length;
+
+        draw();
+    });
 
     function toPx(m, axis) {
         const pad = 40;
@@ -111,7 +138,8 @@
 
         ctx.fillStyle = '#111827'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
 
-        if (spState.heatmap.active) {
+        // --- DRAW HEATMAP IF VISIBLE ---
+        if (spState.heatmap.active && spState.heatmap.visible) {
             spState.heatmap.data.forEach(c => {
                 ctx.fillStyle = `hsla(${c.norm * 120}, 70%, 45%, 0.5)`;
                 ctx.fillRect(
@@ -233,9 +261,14 @@
     function generateHeatmap() {
         els.btnHeatmap.innerText = 'Calculating...';
         setTimeout(() => {
+            spState.heatmap.active = true;
+            spState.heatmap.visible = true;
+            spState.heatmap.data = [];
+            els.toggleHeatmap.checked = true;
+            els.toggleHeatmap.disabled = false;
+
             const rows = 30;
             const cols = 30;
-            spState.heatmap.data = [];
             const sx = spState.room.width / cols;
             const sy = spState.room.length / rows;
             let min = Infinity;
@@ -269,21 +302,39 @@
                 }
             }
             spState.heatmap.data.forEach(d => d.norm = (d.val - min) / (max - min));
-            spState.heatmap.active = true;
+            
             els.legend.classList.remove('hidden');
             draw();
             els.btnHeatmap.innerText = 'REFRESH ZONES';
         }, 50);
     }
 
-    function updateInputs() {
-        // Fallback for NaN (empty input)
+    // --- REFACTORED UPDATE LOGIC ---
+    function updateStateFromDOM(keepHeatmap = false) {
         spState.room.width = parseFloat(els.inputs.W.value) || 5.0;
         spState.room.length = parseFloat(els.inputs.L.value) || 6.0;
         spState.mirror = els.inputs.Mirror.checked;
         spState.mirrorMode = els.inputs.MirrorMode.value;
 
-        const clamp = (val, max) => Math.max(0.2, Math.min(val, max - 0.2));
+        window.appState.update({
+            room: { width: spState.room.width, length: spState.room.length },
+            speakers: { 
+                left: { x: spState.speakers.left.x, y: spState.speakers.left.y }, 
+                right: { x: spState.speakers.right.x, y: spState.speakers.right.y } 
+            },
+            listener: { x: spState.listener.x, y: spState.listener.y }
+        });
+
+        if (!keepHeatmap) {
+            spState.heatmap.active = false;
+            spState.heatmap.visible = false;
+            els.toggleHeatmap.checked = false;
+            els.toggleHeatmap.disabled = true;
+            els.legend.classList.add('hidden');
+        }
+        
+        // Clamping logic...
+        const clamp = (val, max) => Math.max(0.1, Math.min(val, max - 0.1));
         spState.speakers.left.x = clamp(spState.speakers.left.x, spState.room.width);
         spState.speakers.left.y = clamp(spState.speakers.left.y, spState.room.length);
         spState.speakers.right.x = clamp(spState.speakers.right.x, spState.room.width);
@@ -295,16 +346,26 @@
 
     function resizeSP() {
         if (els.container && els.canvas) {
-            // Fix for iOS rendering: Don't resize if container is hidden
             if (els.container.clientWidth === 0) return;
-            
             els.canvas.width = els.container.clientWidth;
             els.canvas.height = els.container.clientHeight;
             requestAnimationFrame(() => draw());
         }
     }
 
-    // --- INTERACTION LOGIC MATCHING ROOM-SIM ---
+    // Toggle Button Logic
+    els.toggleHeatmap.addEventListener('change', (e) => {
+        spState.heatmap.visible = e.target.checked;
+        if (spState.heatmap.visible) els.legend.classList.remove('hidden');
+        else els.legend.classList.add('hidden');
+        draw();
+    });
+
+    // Listeners
+    [els.inputs.W, els.inputs.L].forEach(e => e.addEventListener('input', () => updateStateFromDOM(false)));
+    [els.inputs.Mirror, els.inputs.MirrorMode].forEach(e => e.addEventListener('change', () => updateStateFromDOM(true)));
+
+    // Drag
     const getPos = (e) => {
         const r = els.canvas.getBoundingClientRect();
         const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -313,7 +374,6 @@
     };
 
     const handleStart = (e) => {
-        // No preventDefault here to allow scrolling if we miss targets
         const p = getPos(e);
         const mx = toMeters(p.x, 'x');
         const my = toMeters(p.y, 'y');
@@ -340,8 +400,6 @@
         if (spState.hovered !== h) { spState.hovered = h; draw(); }
 
         if (!isDragging) return;
-        
-        // Block scrolling ONLY when dragging
         if (e.cancelable) e.preventDefault();
 
         const S = spState.speakers;
@@ -349,7 +407,7 @@
 
         if (isDragging === 'listener') {
             L.x = mx; L.y = my;
-            spState.heatmap.active = false; els.legend.classList.add('hidden');
+            updateStateFromDOM(false); // RESET Heatmap
         } else {
             const active = spState.speakers[isDragging];
             const other = isDragging === 'left' ? S.right : S.left;
@@ -367,8 +425,8 @@
                 other.x = Math.max(pd, Math.min(other.x, spState.room.width - pd));
                 other.y = Math.max(pd, Math.min(other.y, spState.room.length - pd));
             }
+            updateStateFromDOM(true); // KEEP Heatmap
         }
-        draw();
     };
 
     const handleEnd = () => { isDragging = null; draw(); };
@@ -377,17 +435,15 @@
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleEnd);
     
-    // Passive: false is critical for preventDefault to work in handleMove
     els.canvas.addEventListener('touchstart', handleStart, {passive: false});
     window.addEventListener('touchmove', handleMove, {passive: false});
     window.addEventListener('touchend', handleEnd);
     
-    Object.values(els.inputs).forEach(el => el.addEventListener('input', updateInputs));
     els.btnHeatmap.addEventListener('click', generateHeatmap);
 
     window.addEventListener('resize-sp', resizeSP);
     window.addEventListener('resize', () => { if(document.getElementById('view-speaker-placement').classList.contains('active')) resizeSP(); });
     setTimeout(resizeSP, 100);
-    updateInputs();
+    updateStateFromDOM(false);
 
 })();

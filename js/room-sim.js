@@ -2,15 +2,24 @@
     // Physics Constants
     const C = 343; 
 
-    // State
+    // Init State from Global Manager
+    const global = window.appState.get();
+
+    // Mapping Note: 
+    // In this specific file, 'length' is used for X-axis (DimX) and 'width' for Y-axis (DimY).
+    // Global state uses standard: width=X, length=Y. We map accordingly.
     const state = {
-        room: { length: 5.0, width: 4.0, height: 2.4 },
-        sub: { x: 1.0, y: 0.5, z: 0.3 },
-        listener: { x: 2.5, y: 3.0, z: 1.1 },
+        room: { 
+            length: global.room.width,  // Map Global Width (X) -> Local Length (X)
+            width: global.room.length,  // Map Global Length (Y) -> Local Width (Y)
+            height: global.room.height 
+        },
+        sub: { ...global.speakers.sub },
+        listener: { ...global.listener },
         dampingQ: 10,
         crossover: 80,
         targetBoost: 0,
-        heatmap: { active: false, data: [] },
+        heatmap: { active: false, visible: false, data: [] },
         hovered: null
     };
 
@@ -31,13 +40,51 @@
             Q: getEl('qValueDisplay'), Crossover: getEl('crossoverVal'),
             Sub: getEl('coordsSub'), List: getEl('coordsList'), Modes: getEl('modeList')
         },
-        btnHeatmap: getEl('btnHeatmap'), legend: getEl('heatmapLegend')
+        btnHeatmap: getEl('btnHeatmap'), legend: getEl('heatmapLegend'),
+        toggleHeatmap: getEl('toggleHeatmapSim') // NY KNAPP
     };
 
     if (!els.canvas) return;
 
     const ctx = els.canvas.getContext('2d');
     const ctxChart = getEl('freqChart').getContext('2d');
+
+    // --- SYNC LOGIC START ---
+    
+    // Set initial input values from state
+    if(els.inputs.DimX) els.inputs.DimX.value = state.room.length;
+    if(els.inputs.DimY) els.inputs.DimY.value = state.room.width;
+    if(els.inputs.H) els.inputs.H.value = state.room.height;
+    if(els.inputs.SubZ) els.inputs.SubZ.value = state.sub.z;
+    if(els.inputs.ListZ) els.inputs.ListZ.value = state.listener.z;
+
+    // Listen for global updates
+    window.addEventListener('app-state-updated', (e) => {
+        const s = e.detail;
+        
+        // Update local state
+        state.room.length = s.room.width;
+        state.room.width = s.room.length;
+        state.room.height = s.room.height;
+        state.sub.x = s.speakers.sub.x;
+        state.sub.y = s.speakers.sub.y;
+        state.sub.z = s.speakers.sub.z;
+        state.listener.x = s.listener.x;
+        state.listener.y = s.listener.y;
+        state.listener.z = s.listener.z;
+
+        // Update DOM inputs to match new reality (only if not currently focused to avoid typing conflict)
+        if(document.activeElement !== els.inputs.DimX) els.inputs.DimX.value = state.room.length;
+        if(document.activeElement !== els.inputs.DimY) els.inputs.DimY.value = state.room.width;
+        if(document.activeElement !== els.inputs.H) els.inputs.H.value = state.room.height;
+        if(document.activeElement !== els.inputs.SubZ) els.inputs.SubZ.value = state.sub.z;
+        if(document.activeElement !== els.inputs.ListZ) els.inputs.ListZ.value = state.listener.z;
+
+        // Force redraw
+        upd();
+    });
+
+    // --- SYNC LOGIC END ---
 
     function getTargetCurveData() {
         const data = [];
@@ -58,7 +105,6 @@
 
     function getModes() {
         const modes = [];
-        // Use safe values (fallback to 1.0 if NaN) to prevent crashes
         const L = state.room.length || 5.0;
         const W = state.room.width || 4.0;
         const H = state.room.height || 2.4;
@@ -196,7 +242,8 @@
 
         ctx.fillStyle = '#111827'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
 
-        if (state.heatmap.active) {
+        // --- DRAW HEATMAP IF ACTIVE AND VISIBLE ---
+        if (state.heatmap.active && state.heatmap.visible) {
             state.heatmap.data.forEach(c => {
                 ctx.fillStyle = `hsla(${c.norm * 120}, 70%, 45%, 0.5)`;
                 ctx.fillRect(Math.floor(toPx(c.x - c.w / 2, 'x')), Math.floor(toPx(c.y - c.h / 2, 'y')), Math.ceil(toPx(c.w, 'x') - toPx(0, 'x')) + 1, Math.ceil(toPx(c.h, 'y') - toPx(0, 'y')) + 1);
@@ -353,8 +400,8 @@
                     },
                     scales: {
                         y: { 
-                            suggestedMin: -30, 
-                            suggestedMax: 15, 
+                            suggestedMin: -5, 
+                            suggestedMax: 5, 
                             grid: { color: '#1e293b' }, 
                             ticks: { color: '#64748b' } 
                         },
@@ -408,7 +455,12 @@
     function upd() { resizeRoomSim(); }
 
     function generateHeatmap() {
-        state.heatmap = { active: true, data: [] };
+        state.heatmap.active = true;
+        state.heatmap.visible = true;
+        state.heatmap.data = [];
+        els.toggleHeatmap.checked = true;
+        els.toggleHeatmap.disabled = false;
+        
         const rows = 30; const cols = 30;
         const sx = state.room.length / cols; const sy = state.room.width / rows;
         const tgt = getTargetCurveData();
@@ -446,8 +498,9 @@
         upd();
     }
 
-    function updateInputs() {
-        // Use safe parsing with fallback to prevent NaN crashing everything
+    // --- REFACTORED UPDATE LOGIC ---
+    
+    function updateStateFromDOM(keepHeatmap = false) {
         state.room.length = parseFloat(els.inputs.DimX.value) || 5.0;
         state.room.width = parseFloat(els.inputs.DimY.value) || 4.0;
         state.room.height = parseFloat(els.inputs.H.value) || 2.4;
@@ -460,28 +513,47 @@
         els.displays.Q.innerText = state.dampingQ;
         els.displays.Crossover.innerText = state.crossover + " Hz";
 
-        const pd = 0.2;
+        // Boundaries
+        const pd = 0.1;
         state.sub.x = Math.min(Math.max(pd, state.sub.x), state.room.length - pd);
         state.sub.y = Math.min(Math.max(pd, state.sub.y), state.room.width - pd);
         state.listener.x = Math.min(Math.max(pd, state.listener.x), state.room.length - pd);
         state.listener.y = Math.min(Math.max(pd, state.listener.y), state.room.width - pd);
 
-        state.heatmap.active = false;
-        els.legend.classList.add('hidden');
+        // Sync Global
+        window.appState.update({
+            room: { 
+                width: state.room.length, // Mapping local X to global width
+                length: state.room.width, // Mapping local Y to global length
+                height: state.room.height 
+            },
+            speakers: { 
+                sub: { x: state.sub.x, y: state.sub.y, z: state.sub.z } 
+            },
+            listener: { 
+                x: state.listener.x, y: state.listener.y, z: state.listener.z 
+            }
+        });
+
+        // Heatmap Logic
+        if (!keepHeatmap) {
+            state.heatmap.active = false;
+            state.heatmap.visible = false;
+            els.toggleHeatmap.checked = false;
+            els.toggleHeatmap.disabled = true;
+            els.legend.classList.add('hidden');
+        }
         upd();
     }
 
-    Object.values(els.inputs).forEach(e => e.addEventListener('input', updateInputs));
-    
-    els.btnHeatmap.addEventListener('click', () => {
-        const oldTxt = els.btnHeatmap.innerText;
-        els.btnHeatmap.innerText = 'CALCULATING...';
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            generateHeatmap();
-            els.btnHeatmap.innerText = oldTxt;
-        }));
-    });
+    // Listeners for "Destructive" changes (Resets Heatmap)
+    [els.inputs.DimX, els.inputs.DimY, els.inputs.H, els.inputs.ListZ, els.inputs.Q, els.inputs.Crossover, els.inputs.Target]
+        .forEach(e => e.addEventListener('input', () => updateStateFromDOM(false)));
 
+    // Listeners for "Non-Destructive" changes (Keeps Heatmap)
+    els.inputs.SubZ.addEventListener('input', () => updateStateFromDOM(true));
+
+    // Drag Logic
     const getPos = (e) => {
         const r = els.canvas.getBoundingClientRect();
         const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -512,12 +584,33 @@
         if (!isDragging) return;
         if (e.cancelable) e.preventDefault();
 
-        if (isDragging === 'sub') { state.sub.x = mx; state.sub.y = my; }
-        else { state.listener.x = mx; state.listener.y = my; state.heatmap.active = false; els.legend.classList.add('hidden'); }
-        upd();
+        if (isDragging === 'sub') { 
+            state.sub.x = mx; state.sub.y = my;
+            updateStateFromDOM(true); // KEEP Heatmap
+        } else { 
+            state.listener.x = mx; state.listener.y = my; 
+            updateStateFromDOM(false); // RESET Heatmap
+        }
     };
 
     const handleEnd = () => { isDragging = null; draw(); };
+
+    // Toggle Button Logic
+    els.toggleHeatmap.addEventListener('change', (e) => {
+        state.heatmap.visible = e.target.checked;
+        if (state.heatmap.visible) els.legend.classList.remove('hidden');
+        else els.legend.classList.add('hidden');
+        draw();
+    });
+
+    els.btnHeatmap.addEventListener('click', () => {
+        const oldTxt = els.btnHeatmap.innerText;
+        els.btnHeatmap.innerText = 'CALCULATING...';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            generateHeatmap();
+            els.btnHeatmap.innerText = oldTxt;
+        }));
+    });
 
     els.canvas.addEventListener('mousedown', handleStart);
     window.addEventListener('mousemove', handleMove);

@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Physics Lab (Beta)</title>
     
-    <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-    <!-- VIEW: DASHBOARD -->
     <div id="view-dashboard" class="view-section active">
         <header class="bg-slate-900 border-b border-slate-800 py-12 flex-none">
             <div class="max-w-6xl mx-auto px-6">
@@ -33,7 +30,6 @@
         <main class="flex-1 max-w-6xl mx-auto px-6 py-12 w-full">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                <!-- Room Sim Card -->
                 <div onclick="app.navigate('simulator')" class="cursor-pointer block group">
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
                         <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-500 transition-colors">
@@ -45,7 +41,6 @@
                     </div>
                 </div>
 
-                <!-- Speaker Placement Card -->
                 <div onclick="app.navigate('speaker-placement')" class="cursor-pointer block group">
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
                         <div class="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-500 transition-colors">
@@ -57,7 +52,6 @@
                     </div>
                 </div>
 
-                <!-- Time & Phase Aligner -->
                 <div onclick="app.navigate('time-align')" class="cursor-pointer block group">
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
                         <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-500 transition-colors">
@@ -69,7 +63,6 @@
                     </div>
                 </div>
 
-                <!-- Reflection Ray-Tracer -->
                 <div onclick="app.navigate('reflection-sim')" class="cursor-pointer block group">
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
                         <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-orange-500 transition-colors">
@@ -84,7 +77,6 @@
             </div>
         </main>
 
-        <!-- FOOTER -->
         <footer class="border-t border-slate-800 py-8 mt-auto bg-slate-900 text-center">
             <div class="max-w-4xl mx-auto px-6">
                 <p class="text-slate-500 text-xs mb-4 leading-relaxed">
@@ -101,7 +93,6 @@
 
                 <div class="flex justify-center gap-6 text-xs font-medium">
                     <a href="mailto:din@email.com" class="text-blue-400 hover:text-blue-300 transition-colors">Report a Bug</a>
-                    <!-- Laster nå Terms og Privacy som eksterne filer eller modals -->
                     <a href="terms.html" class="text-slate-400 hover:text-slate-300 transition-colors">Terms of Use</a>
                     <a href="privacy.html" class="text-slate-400 hover:text-slate-300 transition-colors">Privacy Policy</a>
                 </div>
@@ -109,10 +100,7 @@
         </footer>
     </div>
 
-    <!-- VIEW: ROOM MODE SIMULATOR -->
     <div id="view-simulator" class="view-section desktop-lock">
-        <!-- ...Samme innhold som før, bare header/navigasjon i toppen... -->
-        <!-- For brevity, keeping the previous structure but ensure the Back button calls app.navigate('dashboard') -->
         <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
             <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
                 <div class="flex items-center gap-4">
@@ -124,7 +112,6 @@
                 </div>
             </div>
         </header>
-        <!-- Inkluderer resten av view-simulator strukturen her (samme som før) -->
         <div class="flex-1 flex flex-col lg:flex-row bg-[#0f172a] lg:overflow-hidden">
             <aside class="w-full lg:w-80 flex-none bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 order-2 lg:order-1 lg:overflow-y-auto">
                 <div class="control-card p-4 rounded-xl border-blue-900/30 bg-blue-950/10">
@@ -133,6 +120,12 @@
                         <div><label class="text-xs text-slate-400">Target Curve</label><select id="inputTargetCurve" class="input-dark w-full rounded p-1 text-xs"><option value="0">Flat (0dB)</option><option value="3">Harman (+3dB)</option><option value="6">Harman (+6dB)</option><option value="9">Harman (+9dB)</option><option value="12">Harman (+12dB)</option></select></div>
                         <div><label class="text-xs text-slate-400">Crossover: <span id="crossoverVal">80</span>Hz</label><input type="range" id="inputCrossover" min="40" max="150" value="80" class="range-slider w-full"></div>
                         <button id="btnHeatmap" class="btn-action w-full py-2 rounded text-xs font-bold text-white">GENERATE HEATMAP</button>
+                        
+                        <div class="flex items-center justify-between pt-1">
+                            <label class="text-[10px] text-slate-400 cursor-pointer" for="toggleHeatmapSim">Show Heatmap</label>
+                            <input type="checkbox" id="toggleHeatmapSim" class="accent-blue-500" disabled>
+                        </div>
+
                         <div id="heatmapLegend" class="hidden mt-2"><div class="flex justify-between text-[10px] text-slate-400"><span>Bad</span><span>Good</span></div><div class="h-1 bg-gradient-to-r from-red-500 to-green-500 rounded"></div></div>
                     </div>
                 </div>
@@ -168,9 +161,7 @@
         </div>
     </div>
 
-    <!-- VIEW: SPEAKER PLACEMENT -->
     <div id="view-speaker-placement" class="view-section desktop-lock">
-        <!-- ...Header + Content fra tidligere (ingen endringer i logikk, bare at den ligger i samme fil)... -->
         <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
             <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
                 <div class="flex items-center gap-4">
@@ -184,6 +175,12 @@
                 <div class="control-card p-4 rounded-xl border-green-900/30 bg-green-950/10">
                     <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-green-400">OPTIMAL ZONES</h2><div class="relative group"><span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span><div class="tooltip-content text-slate-300 right-0">Calculates geometry (60°) and SBIR safety zones relative to listener.</div></div></div>
                     <button id="btnSpHeatmap" class="btn-action w-full py-2 rounded text-xs font-bold text-white mb-2">GENERATE ZONES</button>
+                    
+                    <div class="flex items-center justify-between mb-2">
+                         <label class="text-[10px] text-slate-400 cursor-pointer" for="toggleHeatmapSp">Show Zones</label>
+                         <input type="checkbox" id="toggleHeatmapSp" class="accent-green-500" disabled>
+                    </div>
+
                     <div id="spHeatmapLegend" class="hidden"><div class="flex justify-between text-[10px] text-slate-400"><span>Poor</span><span>Optimal</span></div><div class="h-1 bg-gradient-to-r from-red-500 to-green-500 rounded"></div></div>
                 </div>
                 <div class="control-card p-4 rounded-xl border-red-900/30 bg-red-950/10">
@@ -233,7 +230,6 @@
         </div>
     </div>
 
-    <!-- VIEW: TIME & PHASE ALIGNER -->
     <div id="view-time-align" class="view-section">
         <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
             <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
@@ -244,7 +240,6 @@
             </div>
         </header>
         <main class="flex-1 flex flex-col lg:flex-row max-w-6xl mx-auto w-full p-6 gap-8">
-            <!-- INPUTS -->
             <div class="flex-1 space-y-6 max-w-md">
                 <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
                     <h2 class="text-sm font-bold text-purple-400 mb-4 uppercase tracking-wide">Measurements</h2>
@@ -262,7 +257,6 @@
                     </div>
                 </div>
             </div>
-            <!-- RESULTS -->
             <div class="flex-1 space-y-6">
                 <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 h-full flex flex-col justify-center items-center text-center">
                     <div class="mb-8"><h3 class="text-2xl font-bold text-white mb-1">Delay Settings</h3><p class="text-slate-400 text-sm">Enter these values into your receiver / DSP.</p></div>
@@ -284,7 +278,6 @@
         </main>
     </div>
 
-    <!-- VIEW: REFLECTION TRACER -->
     <div id="view-reflection-sim" class="view-section desktop-lock">
         <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
             <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
@@ -328,8 +321,8 @@
         </div>
     </div>
 
-    <!-- LOAD SCRIPTS IN ORDER -->
     <script src="js/main.js"></script>
+    <script src="js/state-manager.js"></script>
     <script src="js/room-sim.js"></script>
     <script src="js/speaker-sim.js"></script>
     <script src="js/time-align.js"></script>

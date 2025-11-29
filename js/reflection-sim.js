@@ -1,8 +1,13 @@
 (function() {
+    const global = window.appState.get();
+
     const state = {
-        room: { width: 5.0, length: 6.0 },
-        speakers: { left: { x: 1.25, y: 1.5 }, right: { x: 3.75, y: 1.5 } },
-        listener: { x: 2.5, y: 4.0 },
+        room: { width: global.room.width, length: global.room.length },
+        speakers: { 
+            left: { x: global.speakers.left.x, y: global.speakers.left.y }, 
+            right: { x: global.speakers.right.x, y: global.speakers.right.y } 
+        },
+        listener: { x: global.listener.x, y: global.listener.y },
         options: { showSide: true, showFront: false, showBack: false },
         mirror: true,
         mirrorMode: 'room',
@@ -20,6 +25,27 @@
 
     if (!els.canvas) return;
     const ctx = els.canvas.getContext('2d');
+
+    // --- SYNC LOGIC ---
+    if(els.inputs.W) els.inputs.W.value = state.room.width;
+    if(els.inputs.L) els.inputs.L.value = state.room.length;
+
+    window.addEventListener('app-state-updated', (e) => {
+        const s = e.detail;
+        state.room.width = s.room.width;
+        state.room.length = s.room.length;
+        state.speakers.left.x = s.speakers.left.x;
+        state.speakers.left.y = s.speakers.left.y;
+        state.speakers.right.x = s.speakers.right.x;
+        state.speakers.right.y = s.speakers.right.y;
+        state.listener.x = s.listener.x;
+        state.listener.y = s.listener.y;
+        
+        if(document.activeElement !== els.inputs.W) els.inputs.W.value = state.room.width;
+        if(document.activeElement !== els.inputs.L) els.inputs.L.value = state.room.length;
+        draw();
+    });
+    // ------------------
 
     function toPx(m, axis) {
         const pad = 40, dim = axis === 'x' ? els.canvas.width : els.canvas.height, roomDim = axis === 'x' ? state.room.width : state.room.length;
@@ -239,7 +265,19 @@
         state.options.showBack = els.toggles.Back.checked;
         state.mirror = els.inputs.Mirror.checked;
         state.mirrorMode = els.inputs.MirrorMode.value;
-        const pd = 0.2;
+
+        // --- UPDATE GLOBAL ---
+        window.appState.update({
+            room: { width: state.room.width, length: state.room.length },
+            speakers: {
+                left: { x: state.speakers.left.x, y: state.speakers.left.y },
+                right: { x: state.speakers.right.x, y: state.speakers.right.y }
+            },
+            listener: { x: state.listener.x, y: state.listener.y }
+        });
+        // ---------------------
+
+        const pd = 0.1;
         const clamp = (val, max) => Math.max(pd, Math.min(val, max - pd));
         state.speakers.left.x = clamp(state.speakers.left.x, state.room.width);
         state.speakers.left.y = clamp(state.speakers.left.y, state.room.length);
@@ -300,7 +338,9 @@
                 other.y = Math.max(pd, Math.min(other.y, state.room.length - pd));
             }
         }
-        draw();
+        
+        // Sync during drag
+        update();
     };
     
     const handleEnd = () => isDragging = null;
@@ -315,7 +355,6 @@
     Object.values(els.inputs).forEach(e => e.addEventListener('input', update));
     Object.values(els.toggles).forEach(e => e.addEventListener('change', update));
     
-    // TILBAKE TIL STANDARD LYTTERE (Slik som Speaker Sim bruker)
     window.addEventListener('resize-rf', resizeRF);
     window.addEventListener('resize', () => { if(document.getElementById('view-reflection-sim').classList.contains('active')) resizeRF(); });
     setTimeout(resizeRF, 100);
