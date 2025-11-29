@@ -84,6 +84,19 @@
                     </div>
                 </div>
 
+                <div onclick="app.navigate('peq-gen')" class="cursor-pointer block group">
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
+                        <div class="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-pink-500 transition-colors">
+                            <svg class="w-6 h-6 text-pink-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                        <h2 class="text-xl font-bold text-white mb-2">Auto-PEQ Generator</h2>
+                        <p class="text-slate-400 text-sm mb-4 flex-1">Analyze room modes and generate parametric EQ filters (Freq, Gain, Q) to flatten the response.</p>
+                        <div class="flex items-center text-pink-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
+                    </div>
+                </div>
+
             </div>
         </main>
 
@@ -301,6 +314,132 @@
         </main>
     </div>
 
+    <div id="view-peq-gen" class="view-section">
+    <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
+        <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                </button>
+                <div class="flex items-center gap-3 border-l border-slate-700 pl-4">
+                    <h1 class="font-bold text-lg text-slate-100">Auto-PEQ Generator</h1>
+                    <p class="text-[10px] text-slate-400 uppercase hidden md:block">Filter Calculator</p>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main class="flex-1 max-w-6xl mx-auto w-full p-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
+                    <h2 class="text-xs font-bold text-pink-400 mb-4 uppercase">Analysis Settings</h2>
+                    <div class="space-y-4">
+                        
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Target Curve Profile</label>
+                            <select id="peqTargetCurve" class="input-dark w-full rounded p-2 text-sm" title="Selects the desired bass boost profile (Harman Curve).">
+                                <option value="0">Flat (0dB)</option>
+                                <option value="3">Harman (+3dB)</option>
+                                <option value="6" selected>Harman (+6dB)</option>
+                                <option value="9">Harman (+9dB)</option>
+                                <option value="12">Harman (+12dB)</option>
+                            </select>
+                            <p class="text-[10px] text-slate-500 mt-1">Selects the desired bass boost amount.</p>
+                        </div>
+
+                        <div class="pt-2">
+                            <div class="flex justify-between text-xs mb-1">
+                                <label class="text-slate-400">Target Level Offset</label>
+                                <span id="peqOffsetVal" class="text-pink-400 font-mono font-bold">0 dB</span>
+                            </div>
+                            <input type="range" id="peqTargetOffset" min="-20" max="10" step="0.5" value="0" class="range-slider w-full" title="Move the target line up/down to align with your measurement.">
+                            <p class="text-[10px] text-slate-500 mt-1">Move slider until the target line sits "inside" your response curve.</p>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-700/50">
+                            <div class="flex justify-between text-xs mb-1">
+                                <label class="text-slate-400">Intervention Threshold</label>
+                            </div>
+                            <input type="number" id="peqThreshold" value="1.5" step="0.1" min="0" class="input-dark w-full rounded p-2 text-sm" title="Peaks smaller than this will be ignored.">
+                            <p class="text-[10px] text-slate-500 mt-1">
+                                Ignore peaks smaller than X dB. Increases dynamics by not over-correcting.
+                            </p>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-700/50" title="Averages the response of 3 seats (+/- 50cm side-to-side).">
+                            <div>
+                                <label class="text-xs text-slate-300 select-none cursor-pointer" for="peqCouchMode">Couch Mode (Avg. 3 seats)</label>
+                                <p class="text-[10px] text-slate-500">Widens the sweet spot.</p>
+                            </div>
+                            <input type="checkbox" id="peqCouchMode" class="accent-pink-500" checked>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-700/50">
+                            <label class="block text-xs text-slate-400 mb-1">Max Cut Limit (dB)</label>
+                            <input type="number" id="peqMaxCut" value="15" min="0" class="input-dark w-full rounded p-2 text-sm" title="Safety limit to prevent extreme filters.">
+                            <p class="text-[10px] text-slate-500 mt-1">Safety limit. Filters will not cut deeper than this.</p>
+                        </div>
+                        
+                        <div class="pt-2 border-t border-slate-700/50">
+                            <label class="block text-xs text-slate-400 mb-1">Correction Range (Hz)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <input type="number" id="peqMinFreq" value="20" class="input-dark w-full rounded p-2 text-sm" placeholder="Min">
+                                </div>
+                                <div>
+                                    <input type="number" id="peqMaxFreq" value="200" class="input-dark w-full rounded p-2 text-sm" placeholder="Max">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">Frequency range to analyze and correct.</p>
+                        </div>
+
+                        <button id="btnCalcPEQ" class="btn-action w-full py-2 rounded text-sm font-bold text-white mt-2 shadow-lg shadow-pink-500/20">RE-CALCULATE</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="md:col-span-2 space-y-6">
+                
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 h-64 md:h-96 relative">
+                    <canvas id="peqChart"></canvas>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 min-h-[200px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-white">Suggested Filters</h2>
+                        <button id="btnCopyPEQ" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors hidden">Copy Text</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-400">
+                            <thead class="text-xs text-slate-500 uppercase bg-slate-900/50 border-b border-slate-700">
+                                <tr>
+                                    <th class="px-4 py-3">Filter #</th>
+                                    <th class="px-4 py-3">Frequency</th>
+                                    <th class="px-4 py-3 text-pink-400">Gain</th>
+                                    <th class="px-4 py-3">Q-Factor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="peqTableBody">
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-center text-slate-600 italic">
+                                        Click "Calculate Filters" to analyze room modes.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </main>
+</div>
+
     <div id="view-reflection-sim" class="view-section desktop-lock">
         <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
             <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
@@ -350,5 +489,6 @@
     <script src="js/speaker-sim.js"></script>
     <script src="js/time-align.js"></script>
     <script src="js/reflection-sim.js"></script>
+    <script src="js/peq-gen.js"></script>
 </body>
 </html>
