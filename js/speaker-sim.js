@@ -292,7 +292,7 @@
             } else {
                 ctx.fillStyle = isAct ? '#4ade80' : '#22c55e';
                 if(isAct) { ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 15; }
-                ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(0, 0, 10, 0, 2 * Math.PI); ctx.fill();
             }
             ctx.restore();
         };
@@ -325,6 +325,7 @@
         return Math.abs(diff) * (180 / Math.PI);
     }
 
+    // --- UPDATED SBIR WITH BACK WALL ---
     function calculateSBIRWithPhysics(spk, dDirect, dFrontRefl, dSideRefl, wallSide, customPoints = null) {
         const data = [];
         const c = 343;
@@ -338,20 +339,63 @@
         
         const sideOffAxisDeg = getOffAxisAngle(spk, spState.listener, wallSide);
 
-        // Vertical Params
+        // Vertical Params & Room
+        const W = spState.room.width;
+        const L = spState.room.length;
         const H = spState.room.height || 2.4;
         const zs = spk.z || 1.0;
         const zl = spState.listener.z || 1.1;
         
+        // 1. Direct path and standard reflections
         const dHoriz = getDist(spk, spState.listener); 
         const dFloorRefl = Math.sqrt(dHoriz*dHoriz + (zs + zl)*(zs + zl));
         const dCeilRefl = Math.sqrt(dHoriz*dHoriz + (2*H - zs - zl)*(2*H - zs - zl));
         const dDir3D = Math.sqrt(dHoriz*dHoriz + (zs - zl)*(zs - zl)); 
 
+        // 2. BACK WALL REFLECTION (Behind listener)
+        // Path: Speaker -> Past Listener -> Back Wall -> Listener
+        // Equivalent to distance from Speaker to (Mirror of Listener at y=2L - ly)
+        const ly_mirror = (2 * L) - spState.listener.y;
+        const dBackHoriz = Math.hypot(spState.listener.x - spk.x, ly_mirror - spk.y);
+        const dBackRefl = Math.sqrt(dBackHoriz*dBackHoriz + (zs - zl)*(zs - zl));
+
         const angleFloor = Math.atan((zs + zl) / dHoriz) * (180 / Math.PI);
         const angleCeil = Math.atan((2*H - zs - zl) / dHoriz) * (180 / Math.PI);
 
+        // 3. Back wall Beaming (Speaker off-axis relative to back wall)
+        let backOffAxis = 0;
+        {
+            const dx = spState.listener.x - spk.x;
+            const dy = spState.listener.y - spk.y;
+            let aimAngle = 0;
+            if (spState.adv.toeInMode === 'auto') {
+                aimAngle = Math.atan2(dy, dx);
+            } else {
+                const toeRad = (spState.adv.toeInAngle || 10) * (Math.PI / 180);
+                if (spk.x < W / 2) aimAngle = (Math.PI / 2) - toeRad;
+                else aimAngle = (Math.PI / 2) + toeRad;
+            }
+            const backAngle = Math.atan2(ly_mirror - spk.y, spState.listener.x - spk.x);
+            let diff = Math.abs(aimAngle - backAngle);
+            while(diff > Math.PI) diff -= 2*Math.PI;
+            backOffAxis = Math.abs(diff) * (180 / Math.PI);
+        }
+
         const points = customPoints || chartPoints;
+
+        // Helper function for absorption/beaming
+        const getMag = (baseRefl, axisAngle, f, k) => {
+            let mag = baseRefl;
+            const radius = (f >= xover) ? tweetRad : woofRad;
+            const ka = k * radius;
+            if (ka > 1) {
+                let beamFactor = (ka - 1) * (axisAngle / 90);
+                if (isHorn && f >= xover) beamFactor *= 4.0; 
+                else if (f >= xover) beamFactor *= 1.2; 
+                mag *= Math.pow(10, -Math.min(30, beamFactor * 12) / 20);
+            }
+            return mag;
+        };
 
         for (const f of points) {
             const k = (2 * Math.PI * f) / c;
@@ -370,43 +414,28 @@
             i += frontMag * Math.sin(thetaFront);
 
             // --- SIDE WALL ---
-            let sideMag = reflectionCoeff;
-            const radius = (f >= xover) ? tweetRad : woofRad;
-            const ka = k * radius;
-
-            if (ka > 1) {
-                let beamFactor = (ka - 1) * (sideOffAxisDeg / 90);
-                if (isHorn && f >= xover) beamFactor *= 2.5; 
-                else if (f >= xover) beamFactor *= 1.2; 
-                sideMag *= Math.pow(10, -Math.min(30, beamFactor * 12) / 20);
-            }
+            const sideMag = getMag(reflectionCoeff, sideOffAxisDeg, f, k);
             const thetaSide = k * (dSideRefl - dDirect);
             r += sideMag * Math.cos(thetaSide);
             i += sideMag * Math.sin(thetaSide);
 
             // --- FLOOR ---
-            let floorMag = reflectionCoeff; 
-            if (ka > 1) {
-                let beamFactor = (ka - 1) * (angleFloor / 90);
-                if (isHorn && f >= xover) beamFactor *= 4.0; 
-                else if (f >= xover) beamFactor *= 1.2; 
-                floorMag *= Math.pow(10, -Math.min(30, beamFactor * 12) / 20);
-            }
+            const floorMag = getMag(reflectionCoeff, angleFloor, f, k);
             const thetaFloor = k * (dFloorRefl - dDir3D);
             r += floorMag * Math.cos(thetaFloor);
             i += floorMag * Math.sin(thetaFloor);
 
             // --- CEILING ---
-            let ceilMag = reflectionCoeff;
-            if (ka > 1) {
-                let beamFactor = (ka - 1) * (angleCeil / 90);
-                if (isHorn && f >= xover) beamFactor *= 4.0; 
-                else if (f >= xover) beamFactor *= 1.2; 
-                ceilMag *= Math.pow(10, -Math.min(30, beamFactor * 12) / 20);
-            }
+            const ceilMag = getMag(reflectionCoeff, angleCeil, f, k);
             const thetaCeil = k * (dCeilRefl - dDir3D);
             r += ceilMag * Math.cos(thetaCeil);
             i += ceilMag * Math.sin(thetaCeil);
+
+            // --- BACK WALL ---
+            const backMag = getMag(reflectionCoeff, backOffAxis, f, k);
+            const thetaBack = k * (dBackRefl - dDir3D);
+            r += backMag * Math.cos(thetaBack);
+            i += backMag * Math.sin(thetaBack);
 
             const mag = Math.sqrt(r * r + i * i);
             let db = 20 * Math.log10(mag);
