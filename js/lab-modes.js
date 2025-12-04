@@ -1333,9 +1333,8 @@ class SpeakerMode extends LabMode {
     }
 }
 
-
 // ============================================================================
-// 3. REFLECTION MODE (Unchanged)
+// 3. REFLECTION MODE (Fixed Mirroring & Measurements)
 // ============================================================================
 class ReflectionMode extends LabMode {
     constructor(s, r) {
@@ -1346,25 +1345,46 @@ class ReflectionMode extends LabMode {
     getSidebarHTML() {
         return `
             <div class="control-card p-4 rounded-xl bg-orange-950/20 border border-orange-900/30 space-y-3">
-                <h3 class="text-xs font-bold text-orange-400 mb-2">FIRST REFLECTIONS</h3>
-                <div class="flex justify-between items-center text-xs">
+                <h3 class="text-xs font-bold text-orange-400 mb-2 uppercase">First Reflections</h3>
+                
+                <div class="flex justify-between items-center text-xs group relative">
                     <span class="text-slate-300">Side Walls</span>
-                    <input type="checkbox" id="rfCheckSide" ${this.walls.side ? 'checked' : ''} class="accent-orange-500">
+                    <input type="checkbox" id="rfCheckSide" ${this.walls.side ? 'checked' : ''} class="accent-orange-500 cursor-pointer">
                 </div>
-                <div class="flex justify-between items-center text-xs">
+                
+                <div class="flex justify-between items-center text-xs group relative">
                     <span class="text-slate-300">Front Wall</span>
-                    <input type="checkbox" id="rfCheckFront" ${this.walls.front ? 'checked' : ''} class="accent-orange-500">
+                    <input type="checkbox" id="rfCheckFront" ${this.walls.front ? 'checked' : ''} class="accent-orange-500 cursor-pointer">
                 </div>
-                <div class="flex justify-between items-center text-xs">
+                
+                <div class="flex justify-between items-center text-xs group relative">
                     <span class="text-slate-300">Back Wall</span>
-                    <input type="checkbox" id="rfCheckBack" ${this.walls.back ? 'checked' : ''} class="accent-orange-500">
+                    <input type="checkbox" id="rfCheckBack" ${this.walls.back ? 'checked' : ''} class="accent-orange-500 cursor-pointer">
+                </div>
+            </div>
+
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Layout & Mirroring</h3>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs text-slate-300">Link Speakers</label>
+                    <input type="checkbox" id="rfCheckMirror" class="accent-blue-500" checked>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] text-slate-400">Mirror Around</label>
+                    <select id="rfSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-28 bg-slate-900 border border-slate-700 text-white">
+                        <option value="room">Room Center</option>
+                        <option value="listener">Listener</option>
+                    </select>
                 </div>
             </div>
             
             <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
-                 <h3 class="text-xs font-bold text-slate-300 mb-2">Acoustic Treatment</h3>
-                 <p class="text-[10px] text-slate-400">
-                   Orange dots indicate where to place absorption panels to kill first reflections.
+                 <h3 class="text-xs font-bold text-slate-300 mb-2 uppercase">Acoustic Treatment</h3>
+                 <p class="text-[10px] text-slate-400 leading-relaxed">
+                   Orange prikker viser det præcise punkt på væggen, hvor lyden reflekteres. 
+                   <br><br>
+                   Heltrukken linje = 1. refleksjon.<br>
+                   Stiplet linje = Kryss-refleksjon.
                  </p>
             </div>
         `;
@@ -1376,21 +1396,21 @@ class ReflectionMode extends LabMode {
                 <table class="w-full text-left text-[10px] md:text-xs text-slate-400">
                     <thead class="text-slate-500 font-bold uppercase border-b border-slate-700">
                         <tr>
-                            <th class="py-2">Path Source</th>
-                            <th class="py-2">Reflect. Surface</th>
-                            <th class="py-2">Total Dist</th>
+                            <th class="py-2 pl-2">Source</th>
+                            <th class="py-2">Wall</th>
+                            <th class="py-2">Distance</th>
                             <th class="py-2">Delay</th>
-                            <th class="py-2 text-right">Atten.</th>
+                            <th class="py-2 pr-2 text-right">Atten.</th>
                         </tr>
                     </thead>
-                    <tbody id="rfTableBody" class="font-mono divide-y divide-slate-800/50">
-                        </tbody>
+                    <tbody id="rfTableBody" class="font-mono divide-y divide-slate-800/50"></tbody>
                 </table>
             </div>
         `;
     }
 
     bindEvents() {
+        // Wall toggles
         ['Side', 'Front', 'Back'].forEach(w => {
             const el = document.getElementById(`rfCheck${w}`);
             if(el) el.addEventListener('change', (e) => {
@@ -1399,57 +1419,196 @@ class ReflectionMode extends LabMode {
                 this.updateTable();
             });
         });
-        this.renderer.mirrorSettings = { enabled: false, mode: 'room' };
+        
+        // Setup initial mirror state
+        this.syncMirrorState();
+        
+        // Listeners for mirror changes
+        const checkMirror = document.getElementById('rfCheckMirror');
+        const selMirror = document.getElementById('rfSelectMirrorMode');
+        
+        if(checkMirror) checkMirror.addEventListener('change', () => this.syncMirrorState());
+        if(selMirror) selMirror.addEventListener('change', () => this.syncMirrorState());
+        
         window.addEventListener('app-state-updated', () => this.updateTable());
         this.updateTable();
     }
 
+    syncMirrorState() {
+        const checkMirror = document.getElementById('rfCheckMirror');
+        const selMirror = document.getElementById('rfSelectMirrorMode');
+        if (this.renderer && checkMirror) {
+            this.renderer.mirrorSettings = { 
+                enabled: checkMirror.checked, 
+                mode: selMirror ? selMirror.value : 'room' 
+            };
+        }
+    }
+
     draw(ctx) {
+        // Force sync mirror settings every frame (Fixes issue where state gets lost)
+        this.syncMirrorState();
+
         const s = this.state.get();
         const lx = s.listener.x; const ly = s.listener.y;
+        const W = s.room.width; const L = s.room.length;
 
-        const drawRay = (spk, wall, color) => {
-            let rx, ry; 
-            if(wall === 'left') {
-                const m = (ly - spk.y) / (-lx - spk.x); 
-                ry = spk.y - m * spk.x; rx = 0;
-            } else if (wall === 'right') {
-                const mirrorLx = s.room.width + (s.room.width - lx);
-                const m = (ly - spk.y) / (mirrorLx - spk.x);
-                ry = spk.y + m * (s.room.width - spk.x); rx = s.room.width;
-            } else if (wall === 'front') {
-                const m = (-ly - spk.y) / (lx - spk.x);
-                rx = spk.x - spk.y / m; ry = 0;
-            } else if (wall === 'back') {
-                const mirrorLy = s.room.length + (s.room.length - ly);
-                 const m2 = (mirrorLy - spk.y) / (lx - spk.x);
-                 rx = (s.room.length - spk.y)/m2 + spk.x;
-                 ry = s.room.length;
-            }
+        // Ny og forbedret funksjon for å tegne dimensjonslinjer
+        const drawDimensionLine = (startX, startY, endX, endY, val, layer = 0, isVertical) => {
+            const pxStart = this.renderer.toPx(startX, 'x');
+            const pyStart = this.renderer.toPx(startY, 'y');
+            const pxEnd = this.renderer.toPx(endX, 'x');
+            const pyEnd = this.renderer.toPx(endY, 'y');
             
-            const pxS = this.renderer.toPx(spk.x, 'x');
-            const pxR = this.renderer.toPx(rx, 'x');
-            const pyR = this.renderer.toPx(ry, 'y');
-            const pxL = this.renderer.toPx(lx, 'x');
-            const pyS = this.renderer.toPx(spk.y, 'y');
-            const pyL = this.renderer.toPx(ly, 'y');
+            // Beregn offset (skyv linjen ut i rommet)
+            // Vi sjekker om vi er på venstre/høyre eller topp/bunn for å vite retning
+            let offX = 0; 
+            let offY = 0;
+            const dist = 25 + (layer * 30); // Base offset 25px, øker med layer
 
-            ctx.strokeStyle = color; ctx.setLineDash([4,4]); ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(pxS, pyS); ctx.lineTo(pxR, pyR); ctx.lineTo(pxL, pyL); ctx.stroke();
-            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(pxR, pyR, 4, 0, Math.PI*2); ctx.fill();
+            if (isVertical) {
+                // Sidevegg: Skyv mot midten av rommet
+                const direction = startX < W/2 ? 1 : -1; 
+                offX = dist * direction;
+            } else {
+                // Front/Bakvegg: Skyv mot midten av rommet
+                const direction = startY < L/2 ? 1 : -1;
+                offY = dist * direction;
+            }
+
+            const p1x = pxStart + offX; const p1y = pyStart + offY;
+            const p2x = pxEnd + offX;   const p2y = pyEnd + offY;
+
+            ctx.save();
+            ctx.strokeStyle = '#475569'; // Målelinje farge
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]); // Alltid heltrukken for selve målet
+            
+            // Tegn selve linjen
+            ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.stroke();
+            
+            // Tegn små "ticks" i endene
+            const tickSz = 4;
+            if(isVertical) {
+                 ctx.beginPath(); ctx.moveTo(p1x-tickSz, p1y); ctx.lineTo(p1x+tickSz, p1y); ctx.stroke();
+                 ctx.beginPath(); ctx.moveTo(p2x-tickSz, p2y); ctx.lineTo(p2x+tickSz, p2y); ctx.stroke();
+            } else {
+                 ctx.beginPath(); ctx.moveTo(p1x, p1y-tickSz); ctx.lineTo(p1x, p1y+tickSz); ctx.stroke();
+                 ctx.beginPath(); ctx.moveTo(p2x, p2y-tickSz); ctx.lineTo(p2x, p2y+tickSz); ctx.stroke();
+            }
+
+            // Tegn stiplet hjelpelinje fra vegg til målestrek (valgfritt, for klarhet)
+            ctx.strokeStyle = 'rgba(71, 85, 105, 0.3)';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.moveTo(pxEnd, pyEnd); ctx.lineTo(p2x, p2y); ctx.stroke();
+
+            // Tegn tekst
+            const txt = val.toFixed(2) + 'm';
+            const met = ctx.measureText(txt);
+            const mx = (p1x + p2x) / 2;
+            const my = (p1y + p2y) / 2;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(mx - met.width/2 - 2, my - 6, met.width + 4, 12);
+            
+            ctx.fillStyle = layer > 0 ? '#fb923c' : '#fdba74'; 
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(txt, mx, my);
+
+            ctx.restore();
         };
 
-        if(this.walls.side) {
-            if(s.speakers.left) drawRay(s.speakers.left, 'left', '#f97316');
-            if(s.speakers.right) drawRay(s.speakers.right, 'right', '#f97316');
+        const processReflection = (spk, wall, isSecondary = false) => {
+            let refX, refY, mirX, mirY;
+            const sx = spk.x; const sy = spk.y;
+
+            if (wall === 'left') {
+                mirX = -sx; mirY = sy;
+                const m = (ly - mirY) / (lx - mirX);
+                refY = mirY + m * (0 - mirX);
+                refX = 0;
+            } else if (wall === 'right') {
+                mirX = W + (W - sx); mirY = sy;
+                const m = (ly - mirY) / (lx - mirX);
+                refY = mirY + m * (W - mirX);
+                refX = W;
+            } else if (wall === 'front') {
+                mirX = sx; mirY = -sy;
+                const m = (ly - mirY) / (lx - mirX);
+                refX = (0 - mirY)/m + mirX;
+                refY = 0;
+            } else if (wall === 'back') {
+                mirX = sx; mirY = L + (L - sy);
+                const m = (ly - mirY) / (lx - mirX);
+                refX = (L - mirY)/m + mirX;
+                refY = L;
+            }
+
+            if ((wall === 'left' || wall === 'right') && (refY < 0 || refY > L)) return;
+            if ((wall === 'front' || wall === 'back') && (refX < 0 || refX > W)) return;
+
+            const pxS = this.renderer.toPx(sx, 'x'); const pyS = this.renderer.toPx(sy, 'y');
+            const pxR = this.renderer.toPx(refX, 'x'); const pyR = this.renderer.toPx(refY, 'y');
+            const pxL = this.renderer.toPx(lx, 'x'); const pyL = this.renderer.toPx(ly, 'y');
+
+            ctx.save();
+            
+            // STYLE: Stiplet for sekundær, Heltrukken for primær
+            if (isSecondary) {
+                ctx.strokeStyle = 'rgba(249, 115, 22, 0.4)'; 
+                ctx.setLineDash([4, 4]); 
+            } else {
+                ctx.strokeStyle = 'rgba(249, 115, 22, 0.7)'; 
+                ctx.setLineDash([]); 
+            }
+            ctx.lineWidth = 1;
+            
+            ctx.beginPath(); ctx.moveTo(pxS, pyS); ctx.lineTo(pxR, pyR); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(pxR, pyR); ctx.lineTo(pxL, pyL); ctx.stroke();
+            
+            ctx.fillStyle = isSecondary ? '#fb923c' : '#f97316';
+            ctx.beginPath(); ctx.arc(pxR, pyR, isSecondary ? 3 : 4, 0, Math.PI*2); ctx.fill();
+
+            // Målinger - Tegn linje fra hjørnet til punktet
+            const layer = isSecondary ? 1 : 0;
+            
+            if (wall === 'left' || wall === 'right') {
+                const distFront = refY;
+                const distBack = L - refY;
+                // Mål avstand fra nærmeste kortvegg
+                if (distFront < distBack) {
+                    drawDimensionLine(refX, 0, refX, refY, refY, layer, true);
+                } else {
+                    drawDimensionLine(refX, L, refX, refY, L-refY, layer, true);
+                }
+            } else {
+                // Mål avstand fra nærmeste langvegg
+                const distLeft = refX;
+                const distRight = W - refX;
+                if (distLeft < distRight) {
+                    drawDimensionLine(0, refY, refX, refY, refX, layer, false);
+                } else {
+                    drawDimensionLine(W, refY, refX, refY, W-refX, layer, false);
+                }
+            }
+            ctx.restore();
+        };
+
+        if (this.walls.side) {
+            if (s.speakers.left) processReflection(s.speakers.left, 'left', false);
+            if (s.speakers.right) processReflection(s.speakers.right, 'right', false);
+            if (s.speakers.left) processReflection(s.speakers.left, 'right', true);
+            if (s.speakers.right) processReflection(s.speakers.right, 'left', true);
         }
-        if(this.walls.front) {
-            if(s.speakers.left) drawRay(s.speakers.left, 'front', '#fdba74');
-            if(s.speakers.right) drawRay(s.speakers.right, 'front', '#fdba74');
+        if (this.walls.front) {
+            if (s.speakers.left) processReflection(s.speakers.left, 'front', false);
+            if (s.speakers.right) processReflection(s.speakers.right, 'front', false);
         }
-        if(this.walls.back) {
-            if(s.speakers.left) drawRay(s.speakers.left, 'back', '#fb923c');
-            if(s.speakers.right) drawRay(s.speakers.right, 'back', '#fb923c');
+        if (this.walls.back) {
+            if (s.speakers.left) processReflection(s.speakers.left, 'back', false);
+            if (s.speakers.right) processReflection(s.speakers.right, 'back', false);
         }
     }
     
@@ -1472,12 +1631,16 @@ class ReflectionMode extends LabMode {
             const delay = ((dReflect - dDirect) / C) * 1000; 
             const atten = 20 * Math.log10(dDirect / dReflect);
             
+            let delayColor = 'text-slate-200';
+            if(delay < 5) delayColor = 'text-red-400 font-bold'; 
+            else if(delay < 15) delayColor = 'text-yellow-400';
+
             rows += `
-                <tr class="hover:bg-slate-800/50 transition-colors">
-                    <td class="py-2 pl-2 text-white">${name}</td>
-                    <td class="py-2 text-orange-400">${wall.charAt(0).toUpperCase() + wall.slice(1)} Wall</td>
-                    <td class="py-2">${dReflect.toFixed(2)}m</td>
-                    <td class="py-2 font-bold text-slate-200">+${delay.toFixed(1)}ms</td>
+                <tr class="hover:bg-slate-800/50 transition-colors border-b border-slate-800/50">
+                    <td class="py-2 pl-2 text-white text-[10px]">${name}</td>
+                    <td class="py-2 text-orange-400 text-[10px]">${wall.charAt(0).toUpperCase() + wall.slice(1)}</td>
+                    <td class="py-2 text-slate-400">${dReflect.toFixed(2)}m</td>
+                    <td class="py-2 ${delayColor}">+${delay.toFixed(1)}ms</td>
                     <td class="py-2 pr-2 text-right text-slate-500">${atten.toFixed(1)} dB</td>
                 </tr>
             `;
@@ -1496,7 +1659,238 @@ class ReflectionMode extends LabMode {
             calcPath(s.speakers.right, 'back', 'Right Spk');
         }
 
-        if(rows === '') rows = '<tr><td colspan="5" class="py-4 text-center text-slate-600 italic">Enable walls in sidebar to see data</td></tr>';
+        if(rows === '') rows = '<tr><td colspan="5" class="py-8 text-center text-slate-600 italic">Select walls in the sidebar to visualize reflections</td></tr>';
         tbody.innerHTML = rows;
+    }
+}
+
+// ============================================================================
+// 4. TIME ALIGN MODE (New Implementation)
+// ============================================================================
+class TimeAlignMode extends LabMode {
+    constructor(s, r) {
+        super(s, r);
+        this.settings = {
+            crossover: 80,
+            speedOfSound: 343
+        };
+    }
+
+    getSidebarHTML() {
+        return `
+            <div class="control-card p-4 rounded-xl bg-purple-950/20 border border-purple-900/30 space-y-4">
+                <h3 class="text-xs font-bold text-purple-400 uppercase">Time Alignment</h3>
+                <p class="text-[10px] text-slate-400">
+                    Calculates precise delay settings to ensure sound from all speakers arrives at the listener's ears simultaneously.
+                </p>
+
+                <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Crossover Frequency (Hz)</label>
+                    <input type="number" id="taInputXover" value="${this.settings.crossover}" class="input-dark w-full rounded p-1.5 text-xs bg-slate-900 border border-slate-700 text-white">
+                </div>
+                
+                <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Speed of Sound (m/s)</label>
+                    <input type="number" id="taInputSpeed" value="${this.settings.speedOfSound}" class="input-dark w-full rounded p-1.5 text-xs bg-slate-900 border border-slate-700 text-white">
+                </div>
+            </div>
+
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-2">Instructions</h3>
+                <ul class="list-disc list-inside text-[10px] text-slate-400 space-y-1">
+                    <li>Input physical distances are calculated automatically from the 3D layout.</li>
+                    <li>Enter the required delay values into your DSP / Receiver.</li>
+                    <li>Check "Phase Recommendation" for Subwoofer polarity.</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    getBottomPanelHTML() {
+        return `
+            <div class="w-full h-full overflow-auto p-4 custom-scrollbar">
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="flex-1">
+                        <table class="w-full text-left text-[10px] md:text-xs text-slate-400">
+                            <thead class="text-slate-500 font-bold uppercase border-b border-slate-700">
+                                <tr>
+                                    <th class="py-2 pl-2">Channel</th>
+                                    <th class="py-2">Distance</th>
+                                    <th class="py-2">Time of Flight</th>
+                                    <th class="py-2 text-right pr-2 text-purple-400">Set Delay</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taTableBody" class="font-mono divide-y divide-slate-800/50">
+                                </tbody>
+                        </table>
+                    </div>
+
+                    <div class="w-full md:w-1/3 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <h4 class="text-xs font-bold text-slate-300 uppercase mb-3">Subwoofer Integration</h4>
+                        
+                        <div class="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
+                            <span class="text-[10px] text-slate-400">Phase Shift @ <span id="taDispXover">80</span>Hz</span>
+                            <span id="taResDiff" class="font-mono text-white font-bold">--°</span>
+                        </div>
+                        
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] text-slate-400">Recommended Polarity:</span>
+                            <div id="taResRec" class="text-xs font-bold text-slate-500 uppercase bg-slate-900/50 px-2 py-1.5 rounded text-center border border-slate-700">
+                                --
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    bindEvents() {
+        const inpXover = document.getElementById('taInputXover');
+        const inpSpeed = document.getElementById('taInputSpeed');
+
+        const updateParams = () => {
+            this.settings.crossover = parseFloat(inpXover.value) || 80;
+            this.settings.speedOfSound = parseFloat(inpSpeed.value) || 343;
+            document.getElementById('taDispXover').innerText = this.settings.crossover;
+            this.updateData();
+            this.renderer.resize(); // Redraw canvas labels
+        };
+
+        if(inpXover) inpXover.addEventListener('input', updateParams);
+        if(inpSpeed) inpSpeed.addEventListener('input', updateParams);
+
+        // Disable mirroring in this mode to ensure precise placement
+        this.renderer.mirrorSettings = { enabled: false, mode: 'room' };
+        
+        window.addEventListener('app-state-updated', () => {
+            this.updateData();
+            // Force redraw to update lines
+            this.renderer.resize(); 
+        });
+        
+        this.updateData();
+    }
+
+    draw(ctx) {
+        const s = this.state.get();
+        const lx = s.listener.x; 
+        const ly = s.listener.y; 
+        const lz = s.listener.z || 1.1;
+
+        const drawTimeLine = (spk, color) => {
+            if (!spk) return;
+            const sx = spk.x; const sy = spk.y; const sz = spk.z || 0;
+            
+            const pxS = this.renderer.toPx(sx, 'x');
+            const pyS = this.renderer.toPx(sy, 'y');
+            const pxL = this.renderer.toPx(lx, 'x');
+            const pyL = this.renderer.toPx(ly, 'y');
+
+            // 1. Draw Line
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(pxS, pyS);
+            ctx.lineTo(pxL, pyL);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.stroke();
+
+            // 2. Calc Time (ms)
+            const dist = Math.hypot(sx - lx, sy - ly, sz - lz);
+            const ms = (dist / this.settings.speedOfSound) * 1000;
+
+            // 3. Draw Label
+            const midX = (pxS + pxL) / 2;
+            const midY = (pyS + pyL) / 2;
+            const txt = ms.toFixed(1) + ' ms';
+            const met = ctx.measureText(txt);
+            
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(midX - met.width/2 - 4, midY - 7, met.width + 8, 14);
+            
+            ctx.fillStyle = color;
+            ctx.font = 'bold 10px sans-serif'; // Bold font for readability
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(txt, midX, midY);
+            
+            ctx.restore();
+        };
+
+        if (s.speakers.left) drawTimeLine(s.speakers.left, '#60a5fa');   // Blue
+        if (s.speakers.right) drawTimeLine(s.speakers.right, '#ef4444'); // Red
+        if (s.speakers.sub) drawTimeLine(s.speakers.sub, '#a855f7');     // Purple
+    }
+
+    updateData() {
+        const tbody = document.getElementById('taTableBody');
+        const dispDiff = document.getElementById('taResDiff');
+        const dispRec = document.getElementById('taResRec');
+        
+        if(!tbody) return;
+
+        const s = this.state.get();
+        const c = this.settings.speedOfSound;
+        const l = s.listener;
+
+        // Helper: Calculate true 3D distance
+        const getD = (p) => Math.hypot(p.x - l.x, p.y - l.y, (p.z||0) - (l.z||1.1));
+
+        const dL = getD(s.speakers.left);
+        const dR = getD(s.speakers.right);
+        const dSub = getD(s.speakers.sub);
+
+        // Convert to time (ms)
+        const tL = (dL / c) * 1000;
+        const tR = (dR / c) * 1000;
+        const tSub = (dSub / c) * 1000;
+
+        // Find reference (max time)
+        const maxT = Math.max(tL, tR, tSub);
+
+        // Calculate delays needed
+        const delL = maxT - tL;
+        const delR = maxT - tR;
+        const delSub = maxT - tSub;
+
+        // Render Table
+        const row = (label, dist, time, delay, colorClass) => `
+            <tr class="hover:bg-slate-800/50 transition-colors border-b border-slate-800/50">
+                <td class="py-2 pl-2 text-white font-medium">${label}</td>
+                <td class="py-2 text-slate-400">${dist.toFixed(2)}m</td>
+                <td class="py-2 text-slate-400">${time.toFixed(2)}ms</td>
+                <td class="py-2 pr-2 text-right font-bold font-mono ${colorClass} text-sm">
+                    ${delay < 0.01 ? '<span class="text-slate-600">0.00ms</span>' : delay.toFixed(2) + 'ms'}
+                </td>
+            </tr>
+        `;
+
+        tbody.innerHTML = 
+            row('Left Speaker', dL, tL, delL, 'text-blue-400') +
+            row('Right Speaker', dR, tR, delR, 'text-red-400') +
+            row('Subwoofer', dSub, tSub, delSub, 'text-purple-400');
+
+        // Phase Calculation
+        const avgMainDist = (dL + dR) / 2;
+        const diffMeters = Math.abs(dSub - avgMainDist);
+        const lambda = c / this.settings.crossover;
+        
+        const cycles = diffMeters / lambda;
+        const phaseShift = (cycles % 1) * 360;
+
+        if (dispDiff) dispDiff.innerText = phaseShift.toFixed(0) + "°";
+
+        if (dispRec) {
+            // Simple logic: if shift is closer to 180 than 0/360, suggest invert
+            if (phaseShift > 90 && phaseShift < 270) {
+                dispRec.innerText = "INVERT POLARITY (180°)";
+                dispRec.className = "text-xs font-bold text-orange-400 uppercase bg-orange-900/30 px-2 py-1.5 rounded text-center border border-orange-800/50 shadow-[0_0_10px_rgba(251,146,60,0.2)]";
+            } else {
+                dispRec.innerText = "NORMAL POLARITY (0°)";
+                dispRec.className = "text-xs font-bold text-green-400 uppercase bg-green-900/30 px-2 py-1.5 rounded text-center border border-green-800/50 shadow-[0_0_10px_rgba(74,222,128,0.2)]";
+            }
+        }
     }
 }
