@@ -813,138 +813,429 @@ class RoomMode extends LabMode {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ============================================================================
-// 2. SPEAKER MODE (Unchanged)
+// 2. SPEAKER MODE (Final Fix: Aspect Ratio Cones & Forced Unlinking)
 // ============================================================================
 class SpeakerMode extends LabMode {
     constructor(s, r) {
         super(s, r);
         this.chart = null;
-        this.params = { toeIn: 10 }; 
+        
+        this.heatmap = {
+            active: false, data: [], cols: 30, rows: 30, generating: false
+        };
+
+        this.settings = {
+            smoothing: false, 
+            minHz: 20,
+            maxHz: 20000
+        };
+
+        this.C = 343;
+        
+        this.physParams = {
+            wooferSize: 6.5, tweeterSize: 1.0, crossover: 2500, baffleWidth: 30
+        };
+    }
+
+    onEnter() {
+        this.active = true;
+        // Vi kjører en sync umiddelbart ved bytte av tab
+        this.syncMirrorSettings();
+    }
+
+    // Hjelpefunksjon for å tvinge renderer til å lystre checkboxen
+    syncMirrorSettings() {
+        const check = document.getElementById('spCheckMirror');
+        const mode = document.getElementById('spSelectMirrorMode');
+        
+        if (this.renderer && check) {
+            this.renderer.mirrorSettings = {
+                enabled: check.checked,
+                mode: mode ? mode.value : 'room'
+            };
+        }
     }
 
     getSidebarHTML() {
+        const s = this.state.get();
+        const adv = s.advanced || {};
+        const z = s.speakers.left.z || 1.0;
+
         return `
-            <div class="control-card p-4 rounded-xl bg-green-950/20 border border-green-900/30">
-                <h3 class="text-xs font-bold text-green-400 mb-3">SPEAKER ALIGNMENT</h3>
-                
-                <label class="text-[10px] text-slate-400 block mb-1">Toe-In Angle</label>
-                <div class="flex items-center gap-3">
-                    <input type="range" id="spInputToe" min="0" max="45" value="${this.params.toeIn}" class="range-slider flex-1">
-                    <span id="spDispToe" class="text-xs font-mono w-8 text-right text-white">${this.params.toeIn}°</span>
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mb-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Stereo Geometry</h3>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                        <div class="text-[10px] text-slate-500">Angle</div>
+                        <div id="spStatAngle" class="text-sm font-bold text-blue-400">--°</div>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                        <div class="text-[10px] text-slate-500">Spread</div>
+                        <div id="spStatSpread" class="text-sm font-bold text-slate-200">--m</div>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                        <div class="text-[10px] text-slate-500">Distance</div>
+                        <div id="spStatDist" class="text-sm font-bold text-slate-200">--m</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
-                <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Layout & Mirroring</h3>
+            <div class="control-card p-4 rounded-xl bg-green-950/20 border border-green-900/30 mb-4">
+                <h3 class="text-xs font-bold text-green-400 mb-3 uppercase">Position & Alignment</h3>
                 
-                <div class="flex items-center justify-between mb-2">
+                <div class="mb-3">
+                    <div class="flex justify-between mb-1">
+                        <label class="text-[10px] text-slate-400">Toe-In Angle</label>
+                        <span id="spDispToe" class="text-[10px] font-mono text-white">${adv.toeInAngle || 10}°</span>
+                    </div>
+                    <input type="range" id="spInputToe" min="0" max="45" value="${adv.toeInAngle || 10}" class="range-slider w-full">
+                </div>
+
+                 <div class="mb-3">
+                    <label class="text-[10px] text-slate-400 block mb-1">Speaker Height (Z)</label>
+                    <input type="number" id="spInputZ" value="${z}" step="0.05" class="input-dark w-full rounded p-1 text-xs bg-slate-900 border border-slate-700 text-white">
+                </div>
+
+                <div class="flex items-center justify-between mb-2 border-t border-green-900/30 pt-2">
                     <label class="text-xs text-slate-300">Link Speakers</label>
-                    <input type="checkbox" id="spCheckMirror" class="accent-green-500">
+                    <input type="checkbox" id="spCheckMirror" class="accent-green-500" checked>
                 </div>
                 
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] text-slate-400">Mirror Around</label>
-                    <select id="spSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-28 bg-slate-900 border border-slate-700 text-white">
+                    <select id="spSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-24 bg-slate-900 border border-slate-700 text-white">
                         <option value="room">Room Center</option>
                         <option value="listener">Listener</option>
                     </select>
                 </div>
             </div>
 
-            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
-                 <h3 class="text-xs font-bold text-slate-300 mb-3">SBIR Info</h3>
-                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                   Lines on canvas show direct path (Yellow) vs wall reflections (Red). 
-                 </p>
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mb-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Graph Settings</h3>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] text-slate-300">Psychoacoustic Smooth</label>
+                        <input type="checkbox" id="spCheckSmooth" ${this.settings.smoothing ? 'checked' : ''} class="accent-blue-500">
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <label class="text-[9px] text-slate-500">Min Hz</label>
+                            <input type="number" id="spInputMinHz" value="${this.settings.minHz}" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-[9px] text-slate-500">Max Hz</label>
+                            <input type="number" id="spInputMaxHz" value="${this.settings.maxHz}" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700">
+                <button id="spBtnHeatmap" class="btn-action w-full py-2 rounded text-xs font-bold text-white shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02]">
+                    OPTIMIZE PLACEMENT
+                </button>
+                <div id="spLegend" class="${this.heatmap.active ? '' : 'hidden'} pt-2 transition-all mt-2">
+                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Poor</span><span>Optimal</span></div>
+                    <div class="h-2 w-full bg-gradient-to-r from-red-600 via-yellow-500 to-green-500 rounded-full border border-slate-700"></div>
+                </div>
             </div>
         `;
     }
 
-    getBottomPanelHTML() {
-        return `<div class="relative w-full h-full p-2"><canvas id="spSbirChart"></canvas></div>`;
-    }
-
     bindEvents() {
-        const rng = document.getElementById('spInputToe');
-        const disp = document.getElementById('spDispToe');
-        rng.addEventListener('input', (e) => {
-            this.params.toeIn = parseInt(e.target.value);
-            disp.innerText = this.params.toeIn + "°";
-            this.renderer.resize(); 
-        });
-        
+        const updateAdv = (key, val) => {
+            const curr = this.state.get().advanced || {};
+            this.state.update({ advanced: { ...curr, [key]: val } });
+        };
+
+        // 1. Toe-In
+        const rngToe = document.getElementById('spInputToe');
+        const dispToe = document.getElementById('spDispToe');
+        if(rngToe) {
+            rngToe.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                dispToe.innerText = val + "°";
+                updateAdv('toeInAngle', val);
+                this.renderer.resize(); 
+                this.updateChart();     
+            });
+        }
+
+        // 2. Mirroring (Link) - Events
         const checkMirror = document.getElementById('spCheckMirror');
         const selMirror = document.getElementById('spSelectMirrorMode');
         
-        const updateMirrorSettings = () => {
-            this.renderer.mirrorSettings = {
-                enabled: checkMirror.checked,
-                mode: selMirror.value
-            };
-        };
+        if(checkMirror) checkMirror.addEventListener('change', () => this.syncMirrorSettings());
+        if(selMirror) selMirror.addEventListener('change', () => this.syncMirrorSettings());
 
-        checkMirror.addEventListener('change', updateMirrorSettings);
-        selMirror.addEventListener('change', updateMirrorSettings);
+        // 3. Height (Z)
+        const inputZ = document.getElementById('spInputZ');
+        if(inputZ) {
+            inputZ.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                const s = this.state.get();
+                // Oppdater begge speakers
+                this.state.update({ 
+                    speakers: {
+                        ...s.speakers,
+                        left: { ...s.speakers.left, z: val },
+                        right: { ...s.speakers.right, z: val }
+                    }
+                });
+            });
+        }
+
+        // 4. Graph
+        const checkSmooth = document.getElementById('spCheckSmooth');
+        if(checkSmooth) {
+            checkSmooth.addEventListener('change', (e) => {
+                this.settings.smoothing = e.target.checked;
+                this.updateChart();
+            });
+        }
         
-        this.renderer.mirrorSettings = { enabled: false, mode: 'room' };
+        const updateRange = () => {
+            const minInput = document.getElementById('spInputMinHz');
+            const maxInput = document.getElementById('spInputMaxHz');
+            this.settings.minHz = minInput ? (parseFloat(minInput.value) || 20) : 20;
+            this.settings.maxHz = maxInput ? (parseFloat(maxInput.value) || 20000) : 20000;
+            
+            if(this.chart) {
+                this.chart.options.scales.x.min = this.settings.minHz;
+                this.chart.options.scales.x.max = this.settings.maxHz;
+                this.updateChart();
+            }
+        };
+        const inMin = document.getElementById('spInputMinHz');
+        const inMax = document.getElementById('spInputMaxHz');
+        if(inMin) inMin.addEventListener('change', updateRange);
+        if(inMax) inMax.addEventListener('change', updateRange);
 
-        window.addEventListener('app-state-updated', () => this.updateChart());
+        // 5. Heatmap
+        const btnHeat = document.getElementById('spBtnHeatmap');
+        if(btnHeat) {
+            btnHeat.addEventListener('click', () => {
+                btnHeat.innerText = "CALCULATING...";
+                btnHeat.disabled = true;
+                setTimeout(() => this.generateHeatmap(btnHeat), 50);
+            });
+        }
 
+        window.addEventListener('app-state-updated', () => {
+            this.updateStats();
+            this.updateChart();
+        });
+
+        // Initialize state
+        this.syncMirrorSettings(); // Sørg for at den er satt riktig ved start
         this.initChart();
+        this.updateStats();
         this.updateChart();
     }
 
     draw(ctx) {
+        // --- 1. FORCE SYNC (The "Nuclear" Option for Unlinking) ---
+        // Siden draw() kjører 60fps, sikrer dette at renderer ALDRI glemmer innstillingen.
+        this.syncMirrorSettings();
+
         const s = this.state.get();
+        const adv = s.advanced || { toeInAngle: 10 };
+
+        // 2. Heatmap Background
+        if (this.heatmap.active && this.heatmap.data.length > 0) {
+            this.heatmap.data.forEach(cell => {
+                const px = this.renderer.toPx(cell.x - cell.w/2, 'x');
+                const py = this.renderer.toPx(cell.y - cell.h/2, 'y');
+                const pw = this.renderer.toPx(cell.w, 'x') - this.renderer.toPx(0, 'x');
+                const ph = this.renderer.toPx(cell.h, 'y') - this.renderer.toPx(0, 'y');
+                const hue = cell.norm * 120;
+                ctx.fillStyle = `hsla(${hue}, 70%, 45%, 0.4)`; 
+                ctx.fillRect(px, py, pw, ph);
+            });
+        }
+
+        // 3. Draw Cones (ASPECT RATIO FIXED)
         const drawCone = (spk, label) => {
             const px = this.renderer.toPx(spk.x, 'x');
             const py = this.renderer.toPx(spk.y, 'y');
-            const toeRad = this.params.toeIn * (Math.PI/180);
-            let baseAngle = Math.PI/2; 
-            if (label === 'left') baseAngle -= toeRad; 
-            else baseAngle += toeRad; 
+            const toeRad = (adv.toeInAngle || 10) * (Math.PI/180);
+            
+            // Beregn skala-faktor (Pixels per Meter) for X og Y
+            // Vi bruker toPx(1) - toPx(0) for å finne hvor mange piksler 1 meter er.
+            const scaleX = this.renderer.toPx(1, 'x') - this.renderer.toPx(0, 'x');
+            const scaleY = this.renderer.toPx(1, 'y') - this.renderer.toPx(0, 'y');
+
+            // Fysisk vinkel i rommet (0 = Høyre, PI/2 = Ned)
+            let physAngle = Math.PI / 2; // Base nedover
+            if (label === 'left') physAngle -= toeRad; 
+            else physAngle += toeRad;
+
+            // Konverter fysisk vinkel til visuell vinkel på lerretet
+            // Vi bruker komponentene (cos, sin) ganget med skala-faktorene
+            const dx = Math.cos(physAngle) * scaleX;
+            const dy = Math.sin(physAngle) * scaleY;
+            const visualAngle = Math.atan2(dy, dx);
 
             ctx.save();
             ctx.translate(px, py);
-            ctx.rotate(baseAngle - Math.PI/2);
+            ctx.rotate(visualAngle); 
+            
+            // Tegn kjegle mot HØYRE (0 grader visuelt)
             ctx.fillStyle = 'rgba(234, 179, 8, 0.15)'; 
-            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-40, 300); ctx.lineTo(40, 300); ctx.fill();
+            ctx.beginPath(); 
+            ctx.moveTo(0, 0); 
+            ctx.lineTo(400, -40); 
+            ctx.lineTo(400, 40); 
+            ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.6)'; 
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5,5]); 
+            ctx.beginPath(); 
+            ctx.moveTo(0, 0); 
+            ctx.lineTo(400, 0); 
+            ctx.stroke();
+            
             ctx.restore();
         };
 
         if(s.speakers.left) drawCone(s.speakers.left, 'left');
         if(s.speakers.right) drawCone(s.speakers.right, 'right');
-
-        const lx = this.renderer.toPx(s.listener.x, 'x');
-        const ly = this.renderer.toPx(s.listener.y, 'y');
-        
-        ['left', 'right'].forEach(side => {
-            const spk = s.speakers[side];
-            if(!spk) return;
-            const sx = this.renderer.toPx(spk.x, 'x');
-            const sy = this.renderer.toPx(spk.y, 'y');
-            ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(lx,ly);
-            ctx.strokeStyle = 'rgba(250, 204, 21, 0.6)'; ctx.setLineDash([5,5]); ctx.stroke();
-            const wallX = side === 'left' ? this.renderer.toPx(0, 'x') : this.renderer.toPx(s.room.width, 'x');
-            ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(wallX, (sy+ly)/2); ctx.lineTo(lx, ly);
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctx.setLineDash([]); ctx.stroke();
-        });
     }
 
-    calculateSBIR(spk, wallDist) {
+    updateStats() {
+        const s = this.state.get();
+        const dx = s.speakers.left.x - s.speakers.right.x;
+        const dy = s.speakers.left.y - s.speakers.right.y;
+        const spread = Math.hypot(dx, dy);
+        
+        const distL = Math.hypot(s.speakers.left.x - s.listener.x, s.speakers.left.y - s.listener.y);
+        const distR = Math.hypot(s.speakers.right.x - s.listener.x, s.speakers.right.y - s.listener.y);
+        const avgDist = (distL + distR) / 2;
+        const deg = (2 * Math.asin(spread / (2 * avgDist))) * (180 / Math.PI);
+
+        const elAng = document.getElementById('spStatAngle');
+        const elSpr = document.getElementById('spStatSpread');
+        const elDst = document.getElementById('spStatDist');
+        
+        if(elAng) {
+            elAng.innerText = isNaN(deg) ? '--' : deg.toFixed(1) + '°';
+            elAng.className = (deg > 50 && deg < 70) ? "text-sm font-bold text-green-400" : "text-sm font-bold text-orange-400";
+        }
+        if(elSpr) elSpr.innerText = spread.toFixed(2) + 'm';
+        if(elDst) elDst.innerText = avgDist.toFixed(2) + 'm';
+    }
+
+    calculateComplexResponse(spk, isLeftSpeaker) {
+        const s = this.state.get();
+        const adv = s.advanced || {};
+        const params = this.physParams;
+        
+        const woofRad = (params.wooferSize * 0.0254) / 2;
+        const tweetRad = (params.tweeterSize * 0.0254) / 2;
+        const xover = params.crossover;
+        const reflectionCoeff = 0.85;
+
+        const lx = s.listener.x; const ly = s.listener.y; const lz = s.listener.z || 1.1;
+        const sx = spk.x; const sy = spk.y; const sz = spk.z || 1.0;
+        const W = s.room.width; const L = s.room.length; const H = s.room.height;
+
+        const dHoriz = Math.hypot(sx - lx, sy - ly);
+        const dDirect = Math.sqrt(dHoriz**2 + (sz - lz)**2);
+        
+        const dFloor = Math.sqrt(dHoriz**2 + (sz + lz)**2);
+        const dCeil = Math.sqrt(dHoriz**2 + (2*H - sz - lz)**2);
+        
+        const ly_mirror = (2 * L) - ly; 
+        const dBackHoriz = Math.hypot(lx - sx, ly_mirror - sy);
+        const dBack = Math.sqrt(dBackHoriz**2 + (sz - lz)**2);
+
+        const dLeftWallHoriz = Math.hypot(sx - (-lx), sy - ly);
+        const dLeftWall = Math.sqrt(dLeftWallHoriz**2 + (sz - lz)**2);
+
+        const dRightWallHoriz = Math.hypot(sx - (2*W - lx), sy - ly);
+        const dRightWall = Math.sqrt(dRightWallHoriz**2 + (sz - lz)**2);
+
+        let spkAimAngle = Math.PI/2; 
+        const toeRad = (adv.toeInAngle || 10) * (Math.PI/180);
+        
+        if (isLeftSpeaker) spkAimAngle -= toeRad; 
+        else spkAimAngle += toeRad;
+        
+        const getOffAxisDeg = (targetX, targetY) => {
+            const angleToTarget = Math.atan2(targetY - sy, targetX - sx);
+            let diff = Math.abs(angleToTarget - spkAimAngle);
+            if(diff > Math.PI) diff = Math.abs(diff - 2*Math.PI);
+            return diff * (180/Math.PI);
+        };
+
+        const degOffAxis = getOffAxisDeg(lx, ly);
+        const degLeftWall = getOffAxisDeg(-lx, ly);
+        const degRightWall = getOffAxisDeg(2*W - lx, ly);
+
         const data = [];
-        const cancelFreq = 343 / (4 * wallDist);
-        for(let f=20; f<=500; f+=5) {
-            let val = 0;
-            const bandwidth = f * 0.5;
-            if (Math.abs(f - cancelFreq) < bandwidth) {
-                const dist = Math.abs(f - cancelFreq);
-                val = -10 * Math.cos((dist/bandwidth) * Math.PI/2);
-            }
-            data.push(val);
+        for (let f = 20; f <= 20000; f *= 1.008) { 
+            const k = (2 * Math.PI * f) / this.C;
+            let r = 0.0; let i = 0.0; 
+
+            const getBeam = (freq, deg) => {
+                const radius = (freq >= xover) ? tweetRad : woofRad;
+                const ka = k * radius;
+                if (ka < 0.5) return 1.0;
+                const lossDB = (ka - 0.5) * (deg / 90) * 12; 
+                return Math.pow(10, -Math.min(40, lossDB) / 20);
+            };
+
+            const addPath = (dist, coeff, degOff) => {
+                const mag = coeff * getBeam(f, degOff);
+                const phase = k * dist;
+                r += mag * Math.cos(phase);
+                i += mag * Math.sin(phase);
+            };
+
+            addPath(dDirect, 1.0, degOffAxis);
+            addPath(dFloor, reflectionCoeff, 45); 
+            addPath(dCeil, reflectionCoeff, 45);
+            addPath(dLeftWall, reflectionCoeff, degLeftWall); 
+            addPath(dRightWall, reflectionCoeff, degRightWall);
+            addPath(dBack, reflectionCoeff, degOffAxis);   
+
+            data.push({ f, r, i });
         }
         return data;
+    }
+
+    applySmoothing(data, active) {
+        if (!active) return data;
+        const smoothed = [];
+        const windowSize = 8; 
+        for (let i = 0; i < data.length; i++) {
+            let sum = 0; let count = 0;
+            for (let j = i - windowSize; j <= i + windowSize; j++) {
+                if (j >= 0 && j < data.length) { sum += data[j].y; count++; }
+            }
+            smoothed.push({ x: data[i].x, y: sum / count });
+        }
+        return smoothed;
     }
 
     initChart() {
@@ -952,16 +1243,23 @@ class SpeakerMode extends LabMode {
         this.chart = new Chart(ctx, {
             type: 'line',
             data: { 
-                labels: Array.from({length:97}, (_,i)=>20+i*5), 
                 datasets: [
-                    { label:'Left Speaker', data:[], borderColor:'#3b82f6', borderWidth:2, pointRadius:0 },
-                    { label:'Right Speaker', data:[], borderColor:'#ef4444', borderWidth:2, pointRadius:0 }
+                    { label:'Left', data:[], borderColor:'#3b82f6', borderWidth:1.5, pointRadius:0, tension: 0.1 }, 
+                    { label:'Right', data:[], borderColor:'#ef4444', borderWidth:1.5, pointRadius:0, tension: 0.1 },
+                    { label:'Combined (Avg)', data:[], borderColor:'#a855f7', borderWidth:2.5, pointRadius:0, tension: 0.1 }
                 ] 
             },
             options: { 
                 responsive:true, maintainAspectRatio:false, animation: false,
-                scales: { x: { ticks:{color:'#64748b'}, grid:{color:'#1e293b'} }, y: { suggestedMin:-20, suggestedMax:5, grid:{color:'#1e293b'} } },
-                plugins: { legend: { labels: { color: '#94a3b8' } } }
+                scales: { 
+                    x: { 
+                        type: 'logarithmic', min: this.settings.minHz, max: this.settings.maxHz,
+                        ticks:{ color:'#64748b', callback: function(value) { if([20,50,100,200,500,1000,2000,5000,10000].includes(value)) return value; }}, 
+                        grid:{color:'#1e293b'} 
+                    }, 
+                    y: { suggestedMin:-20, suggestedMax:10, grid:{color:'#1e293b'}, ticks:{color:'#64748b'} } 
+                },
+                plugins: { legend: { labels: { color: '#94a3b8' } }, tooltip: { mode: 'index', intersect: false } }
             }
         });
     }
@@ -969,13 +1267,103 @@ class SpeakerMode extends LabMode {
     updateChart() {
         if(!this.chart) return;
         const s = this.state.get();
-        const distL = s.speakers.left.x;
-        const distR = s.room.width - s.speakers.right.x;
-        this.chart.data.datasets[0].data = this.calculateSBIR(s.speakers.left, distL);
-        this.chart.data.datasets[1].data = this.calculateSBIR(s.speakers.right, distR);
+        
+        const rawL = this.calculateComplexResponse(s.speakers.left, true);
+        const rawR = this.calculateComplexResponse(s.speakers.right, false);
+
+        const NORM = 14; // Room Gain Compensation
+        const toDB = (c) => 20 * Math.log10(Math.sqrt(c.r**2 + c.i**2) + 1e-9) - NORM;
+
+        const dataL = rawL.map(p => ({ x: p.f, y: toDB(p) }));
+        const dataR = rawR.map(p => ({ x: p.f, y: toDB(p) }));
+
+        const dataComb = rawL.map((p, i) => {
+            const pR = rawR[i];
+            const sumR = p.r + pR.r;
+            const sumI = p.i + pR.i;
+            const magSum = Math.sqrt(sumR**2 + sumI**2);
+            return { x: p.f, y: (20 * Math.log10((magSum / 2) + 1e-9)) - NORM };
+        });
+
+        this.chart.data.datasets[0].data = this.applySmoothing(dataL, this.settings.smoothing);
+        this.chart.data.datasets[1].data = this.applySmoothing(dataR, this.settings.smoothing);
+        this.chart.data.datasets[2].data = this.applySmoothing(dataComb, this.settings.smoothing);
+        
         this.chart.update('none');
     }
+
+    generateHeatmap(btn) {
+        const s = this.state.get();
+        const W = s.room.width; const L = s.room.length;
+        const rows = this.heatmap.rows; const cols = this.heatmap.cols;
+        const sx = W / cols; const sy = L / rows;
+        
+        this.heatmap.data = [];
+        let min = Infinity; let max = -Infinity;
+        const checkFreqs = [40, 60, 80, 100, 150]; 
+
+        for(let y=0; y<rows; y++) {
+            for(let x=0; x<cols; x++) {
+                const cx = x*sx + sx/2; const cy = y*sy + sy/2;
+                
+                // Geo score
+                const spread = Math.abs((W - cx) - cx);
+                const distToLis = Math.hypot(cx - s.listener.x, cy - s.listener.y);
+                const angle = (2 * Math.asin(spread / (2 * distToLis))) * (180 / Math.PI);
+                let geomScore = !isNaN(angle) ? Math.max(0, 1 - (Math.abs(60-angle)/30)) : 0;
+
+                // Physics score
+                const dDir = Math.hypot(cx - s.listener.x, cy - s.listener.y);
+                const dFront = Math.hypot(cx - s.listener.x, -cy - s.listener.y);
+                
+                let dSide;
+                if (cx < W/2) dSide = Math.hypot(-cx - s.listener.x, cy - s.listener.y); 
+                else dSide = Math.hypot((2*W - cx) - s.listener.x, cy - s.listener.y); 
+
+                let err = 0;
+                checkFreqs.forEach(f => {
+                    const k = (2 * Math.PI * f) / 343;
+                    let val = 1.0 + 0.7 * Math.cos(k*(dSide-dDir)) + 0.7 * Math.cos(k*(dFront-dDir));
+                    err += Math.abs(20*Math.log10(Math.abs(val)+0.1));
+                });
+                
+                const physScore = Math.max(0, 1 - (err / 60)); 
+                const total = geomScore * 0.4 + physScore * 0.6;
+                
+                if (total < min) min = total; if (total > max) max = total;
+                this.heatmap.data.push({ x: cx, y: cy, w: sx, h: sy, raw: total });
+            }
+        }
+        
+        const range = max - min;
+        this.heatmap.data.forEach(d => d.norm = range === 0 ? 0 : (d.raw - min) / range);
+        
+        this.heatmap.active = true;
+        document.getElementById('spLegend').classList.remove('hidden');
+        btn.innerText = "REFRESH OPTIMIZATION";
+        btn.disabled = false;
+        this.renderer.resize();
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ============================================================================
 // 3. REFLECTION MODE (Unchanged)
