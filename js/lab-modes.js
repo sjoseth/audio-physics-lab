@@ -814,23 +814,6 @@ class RoomMode extends LabMode {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ============================================================================
 // 2. SPEAKER MODE (Final Fix: Aspect Ratio Cones & Forced Unlinking)
 // ============================================================================
@@ -959,6 +942,10 @@ class SpeakerMode extends LabMode {
                 </div>
             </div>
         `;
+    }
+
+    getBottomPanelHTML() {
+        return `<div class="relative w-full h-full p-2"><canvas id="spSbirChart"></canvas></div>`;
     }
 
     bindEvents() {
@@ -1345,24 +1332,6 @@ class SpeakerMode extends LabMode {
         this.renderer.resize();
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // ============================================================================
