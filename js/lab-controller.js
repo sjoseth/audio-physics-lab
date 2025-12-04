@@ -34,13 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         room: new RoomMode(stateManager, renderer),
         speaker: new SpeakerMode(stateManager, renderer),
         reflection: new ReflectionMode(stateManager, renderer),
-        // Time Align kan være en forenklet versjon eller gjenbruk av eksisterende logikk
-        timealign: { 
-            onEnter: () => console.log('Time Align active'), 
-            onExit: () => {}, 
-            getSidebarHTML: () => '<div class="p-4 text-slate-400">Time Align tool coming soon to V2 interface.</div>',
-            getBottomPanelHTML: () => ''
-        }
+        timealign: new TimeAlignMode(stateManager, renderer)
     };
 
     let currentMode = null;
