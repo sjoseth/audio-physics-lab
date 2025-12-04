@@ -3,572 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Physics Lab (Beta)</title>
+    <title>Audio Physics Lab 2.0</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-
-    <div id="view-dashboard" class="view-section active">
-        <header class="bg-slate-900 border-b border-slate-800 py-12 flex-none">
-    <div class="max-w-6xl mx-auto px-6">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-4">
-            <div class="flex items-center gap-3">
-                <h1 class="text-4xl font-extrabold text-white tracking-tight">
-                    Audio <span class="text-blue-500">Physics</span> Lab
-                </h1>
-                <span class="bg-blue-600/20 text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-500/30 uppercase tracking-wide">Beta</span>
-            </div>
-
-            <button id="btnShareConfig" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg border border-slate-700 transition-all text-sm font-medium group">
-                <svg class="w-4 h-4 text-blue-400 group-hover:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                <span id="shareBtnText">Share Configuration</span>
-            </button>
-        </div>
-        
-        <p class="text-slate-400 text-lg max-w-2xl">
-            Precision tools for acoustic analysis, placement optimization, and room tuning.
-        </p>
-    </div>
-</header>
-
-        <main class="flex-1 max-w-6xl mx-auto px-6 py-12 w-full">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div onclick="app.navigate('simulator')" class="cursor-pointer block group">
-                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
-                        <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-500 transition-colors">
-                            <svg class="w-6 h-6 text-blue-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-white mb-2">Room Mode Simulator</h2>
-                        <p class="text-slate-400 text-sm mb-4 flex-1">Visualize standing waves and find the perfect subwoofer spot using physics-based heatmaps.</p>
-                        <div class="flex items-center text-blue-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
-                    </div>
-                </div>
-
-                <div onclick="app.navigate('speaker-placement')" class="cursor-pointer block group">
-                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
-                        <div class="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-500 transition-colors">
-                            <svg class="w-6 h-6 text-green-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-white mb-2">Speaker Placement</h2>
-                        <p class="text-slate-400 text-sm mb-4 flex-1">L.O.T.S. method calculator with geometric optimization and SBIR analysis for soundstage.</p>
-                        <div class="flex items-center text-green-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
-                    </div>
-                </div>
-
-                <div onclick="app.navigate('time-align')" class="cursor-pointer block group">
-                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
-                        <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-500 transition-colors">
-                            <svg class="w-6 h-6 text-purple-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-white mb-2">Time & Phase Aligner</h2>
-                        <p class="text-slate-400 text-sm mb-4 flex-1">Calculate precise delay settings (ms) and phase coherence for perfect subwoofer integration.</p>
-                        <div class="flex items-center text-purple-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
-                    </div>
-                </div>
-
-                <div onclick="app.navigate('reflection-sim')" class="cursor-pointer block group">
-                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
-                        <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-orange-500 transition-colors">
-                            <svg class="w-6 h-6 text-orange-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-white mb-2">Reflection Tracker</h2>
-                        <p class="text-slate-400 text-sm mb-4 flex-1">Visualize first reflection points on your walls using ray-tracing to place acoustic panels.</p>
-                        <div class="flex items-center text-orange-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
-                    </div>
-                </div>
-
-                <div onclick="app.navigate('peq-gen')" class="cursor-pointer block group">
-                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 transition-all duration-300 card-hover h-full flex flex-col">
-                        <div class="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-pink-500 transition-colors">
-                            <svg class="w-6 h-6 text-pink-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-white mb-2">Auto-PEQ Generator</h2>
-                        <p class="text-slate-400 text-sm mb-4 flex-1">Analyze room modes and generate parametric EQ filters (Freq, Gain, Q) to flatten the response.</p>
-                        <div class="flex items-center text-pink-400 text-sm font-semibold group-hover:translate-x-1 transition-transform">Open Tool <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg></div>
-                    </div>
-                </div>
-
-            </div>
-        </main>
-
-        <footer class="border-t border-slate-800 py-8 mt-auto bg-slate-900 text-center">
-            <div class="max-w-4xl mx-auto px-6">
-                <p class="text-slate-500 text-xs mb-4 leading-relaxed">
-                    <strong>Disclaimer:</strong> These tools provide theoretical approximations based on ideal rectangular rooms. 
-                    Real-world acoustics are influenced by furniture, construction materials, and architectural irregularities not modeled here. 
-                    Use these results as a starting point. All calculations are performed locally in your browser; no data is stored or transmitted.
-                </p>
-                
-                <div class="flex flex-col md:flex-row justify-center items-center gap-4 text-xs text-slate-400 mb-4">
-                    <span>&copy; 2025 Jørgen Sjøseth. All rights reserved.</span>
-                    <span class="hidden md:inline text-slate-700">|</span>
-                    <span>Code & Design by Jørgen Sjøseth</span>
-                </div>
-
-                <div class="flex justify-center gap-6 text-xs font-medium">
-                    <a href="mailto:din@email.com" class="text-blue-400 hover:text-blue-300 transition-colors">Report a Bug</a>
-                    <a href="terms.html" class="text-slate-400 hover:text-slate-300 transition-colors">Terms of Use</a>
-                    <a href="privacy.html" class="text-slate-400 hover:text-slate-300 transition-colors">Privacy Policy</a>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <div id="view-simulator" class="view-section desktop-lock">
-        <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
-            <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-                    <div class="flex items-center gap-3 border-l border-slate-700 pl-4">
-                        <h1 class="font-bold text-lg text-slate-100">Room Mode Simulator</h1>
-                        <p class="text-[10px] text-slate-400 uppercase hidden md:block">Subwoofer Placement</p>
-                    </div>
-                </div>
-            </div>
-        </header>
-        <div class="flex-1 flex flex-col lg:flex-row bg-[#0f172a] lg:overflow-hidden">
-             <aside class="w-full lg:w-80 flex-none bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 order-2 lg:order-1 lg:overflow-y-auto">
-                 <div class="control-card p-4 rounded-xl border-blue-900/30 bg-blue-950/10">
-                     <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-blue-400">OPTIMIZATION</h2></div>
-                     <div class="space-y-2">
-                        <div><label class="text-xs text-slate-400">Target Curve</label><select id="inputTargetCurve" class="input-dark w-full rounded p-1 text-xs"><option value="0">Flat (0dB)</option><option value="3">Harman (+3dB)</option><option value="6">Harman (+6dB)</option><option value="9">Harman (+9dB)</option><option value="12">Harman (+12dB)</option></select></div>
-                         <div class="flex items-center justify-between mt-3 mb-2 pt-2 border-t border-slate-800/50">
-                            <div class="flex items-center gap-2"><label class="text-xs text-slate-400 select-none" for="checkCouchMode">Couch Mode (Avg. 3 seats)</label></div><input type="checkbox" id="checkCouchMode" class="accent-blue-500"></div>
-                        <div><label class="text-xs text-slate-400">Crossover: <span id="crossoverVal">80</span></label><input type="range" id="inputCrossover" min="40" max="150" value="80" class="range-slider w-full"></div>
-                        <button id="btnHeatmap" class="btn-action w-full py-2 rounded text-xs font-bold text-white">GENERATE HEATMAP</button>
-                        <div class="flex items-center justify-between pt-1"><label class="text-[10px] text-slate-400 cursor-pointer" for="toggleHeatmapSim">Show Heatmap</label><input type="checkbox" id="toggleHeatmapSim" class="accent-blue-500" disabled></div>
-                        <div id="heatmapLegend" class="hidden mt-2"><div class="flex justify-between text-[10px] text-slate-400"><span>Bad</span><span>Good</span></div><div class="h-1 bg-gradient-to-r from-red-500 to-green-500 rounded"></div></div>
-                    </div>
-                </div>
-                <div class="control-card p-4 rounded-xl">
-                    <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-slate-300">ROOM SIZE</h2></div>
-                    <div class="grid grid-cols-2 gap-2 mb-2"><div><label class="text-[10px] text-slate-400">Width (X)</label><input type="number" id="inputDimX" value="5.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div><div><label class="text-[10px] text-slate-400">Length (Y)</label><input type="number" id="inputDimY" value="4.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div></div>
-                    <div><label class="text-[10px] text-slate-400">Height</label><input type="number" id="inputHeight" value="2.4" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-                </div>
-                <div class="control-card p-4 rounded-xl">
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center mb-1"><label class="text-[10px] text-blue-400">Sub Height</label><input type="number" id="inputSubZ" value="0.3" step="0.05" class="input-dark w-full rounded p-1 text-sm"></div>
-                        <div class="flex justify-between items-center mb-1 pt-1"><label class="text-[10px] text-green-400">List Height</label><input type="number" id="inputListZ" value="1.1" step="0.05" class="input-dark w-full rounded p-1 text-sm"></div>
-                        <div><label class="text-[10px] text-slate-400 mt-2 block">Damping: <span id="qValueDisplay">10</span></label><input type="range" id="inputQ" min="2" max="30" value="10" class="range-slider w-full"></div>
-                    </div>
-                </div>
-             </aside>
-             <main class="flex-1 flex flex-col min-h-0 relative order-1 lg:order-2">
-                <div class="w-full aspect-video lg:aspect-auto lg:flex-1 relative bg-[#0b101e] overflow-hidden cursor-crosshair group">
-                    <div class="absolute top-4 left-4 z-10 glass-panel px-2 py-1 rounded border border-slate-700/50 flex gap-2 pointer-events-none"><span class="text-blue-400 text-xs">● Sub</span><span class="text-green-400 text-xs">● Listener</span></div>
-                    <div class="absolute bottom-2 left-2 z-10 text-[10px] text-slate-500 pointer-events-none">SUB: <span id="coordsSub" class="text-slate-300">0,0</span> | LYT: <span id="coordsList" class="text-slate-300">0,0</span></div>
-                    <div id="canvasContainer" class="w-full h-full"><canvas id="roomCanvas" class="block w-full h-full"></canvas></div>
-                </div>
-                <div class="h-64 flex flex-col md:flex-row border-t border-slate-800 bg-slate-900 order-3">
-                    <div class="flex-1 p-2 relative"><canvas id="freqChart"></canvas></div>
-                    <div class="w-48 border-l border-slate-800 p-2 overflow-y-auto text-[10px] font-mono" id="modeList"></div>
-                </div>
-            </main>
-        </div>
-    </div>
-
-
-    <div id="view-speaker-placement" class="view-section desktop-lock">
-        <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
-            <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-                    <div class="flex items-center gap-3 border-l border-slate-700 pl-4"><h1 class="font-bold text-lg text-slate-100">Speaker Placement Guide</h1><p class="text-[10px] text-slate-400 uppercase hidden md:block">L.O.T.S. + SBIR</p></div>
-                </div>
-            </div>
-        </header>
-        <div class="flex-1 flex flex-col lg:flex-row bg-[#0f172a] lg:overflow-hidden">
-            <aside class="w-full lg:w-80 flex-none bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 order-2 lg:order-1 lg:overflow-y-auto">
-                <div class="control-card p-4 rounded-xl border-green-900/30 bg-green-950/10">
-                    <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-green-400">OPTIMAL ZONES</h2><div class="relative group"><span class="tooltip-trigger text-slate-500 text-xs cursor-help border border-slate-600 rounded-full w-4 h-4 flex items-center justify-center">?</span><div class="tooltip-content text-slate-300 right-0">Calculates geometry (60°) and SBIR safety zones relative to listener.</div></div></div>
-                    <button id="btnSpHeatmap" class="btn-action w-full py-2 rounded text-xs font-bold text-white mb-2">GENERATE ZONES</button>
-                    
-                    <div class="flex items-center justify-between mb-2">
-                         <label class="text-[10px] text-slate-400 cursor-pointer" for="toggleHeatmapSp">Show Zones</label>
-                         <input type="checkbox" id="toggleHeatmapSp" class="accent-green-500" disabled>
-                    </div>
-
-                    <div id="spHeatmapLegend" class="hidden"><div class="flex justify-between text-[10px] text-slate-400"><span>Poor</span><span>Optimal</span></div><div class="h-1 bg-gradient-to-r from-red-500 to-green-500 rounded"></div></div>
-                </div>
-                <div class="control-card p-4 rounded-xl border-red-900/30 bg-red-950/10">
-                    <div class="flex justify-between mb-2">
-                        <h2 class="text-xs font-bold text-red-400">WALL PROXIMITY (SBIR)</h2>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="space-y-2 text-[10px]">
-                            <div class="text-blue-400 font-bold text-center border-b border-slate-700 pb-1">LEFT</div>
-                            <div class="bg-slate-800/50 rounded p-1.5 border border-slate-700"><div class="flex justify-between mb-0.5"><span class="text-slate-400">Front:</span> <span id="sbirLFront" class="font-mono text-white">--</span></div><div class="w-full bg-slate-700 h-1 rounded"><div id="sbirLFrontBar" class="h-1 rounded bg-red-500" style="width: 0%"></div></div></div>
-                            <div class="bg-slate-800/50 rounded p-1.5 border border-slate-700"><div class="flex justify-between mb-0.5"><span class="text-slate-400">Side:</span> <span id="sbirLSide" class="font-mono text-white">--</span></div><div class="w-full bg-slate-700 h-1 rounded"><div id="sbirLSideBar" class="h-1 rounded bg-red-500" style="width: 0%"></div></div></div>
-                        </div>
-                        <div class="space-y-2 text-[10px]">
-                            <div class="text-blue-400 font-bold text-center border-b border-slate-700 pb-1">RIGHT</div>
-                            <div class="bg-slate-800/50 rounded p-1.5 border border-slate-700"><div class="flex justify-between mb-0.5"><span class="text-slate-400">Front:</span> <span id="sbirRFront" class="font-mono text-white">--</span></div><div class="w-full bg-slate-700 h-1 rounded"><div id="sbirRFrontBar" class="h-1 rounded bg-red-500" style="width: 0%"></div></div></div>
-                            <div class="bg-slate-800/50 rounded p-1.5 border border-slate-700"><div class="flex justify-between mb-0.5"><span class="text-slate-400">Side:</span> <span id="sbirRSide" class="font-mono text-white">--</span></div><div class="w-full bg-slate-700 h-1 rounded"><div id="sbirRSideBar" class="h-1 rounded bg-red-500" style="width: 0%"></div></div></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="control-card p-4 rounded-xl border-slate-700 bg-slate-800/50">
-                    <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-xs font-bold text-slate-300">ADVANCED SPEAKER MODEL</h2>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-[10px] text-slate-400 block mb-1">Toe-In Angle</label>
-                            <select id="spInputToeInMode" class="input-dark w-full rounded p-1 text-xs mb-1">
-                                <option value="auto">Auto (Aim at Listener)</option>
-                                <option value="manual">Manual Angle</option>
-                            </select>
-                            <div id="spManualToeInControl" class="hidden flex items-center gap-2">
-                                <input type="range" id="spInputToeInAngle" min="0" max="45" value="10" class="range-slider flex-1">
-                                <span id="spDispToeIn" class="text-[10px] w-8 text-right font-mono">10°</span>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="text-[10px] text-slate-400 block">Woofer (Inch)</label>
-                                <input type="number" id="spInputWoofer" value="6.5" step="0.5" class="input-dark w-full rounded p-1 text-xs">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-slate-400 block">Tweeter (Inch)</label>
-                                <input type="number" id="spInputTweeter" value="1.0" step="0.1" class="input-dark w-full rounded p-1 text-xs">
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label class="text-[10px] text-slate-400 block mb-1">Tweeter Type</label>
-                            <select id="spInputTweeterType" class="input-dark w-full rounded p-1 text-xs">
-                                <option value="dome">Soft Dome (Standard)</option>
-                                <option value="horn">Horn / Waveguide (Controlled)</option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="text-[10px] text-slate-400 block">Int. X-Over (Hz)</label>
-                                <input type="number" id="spInputCrossover" value="2500" step="100" class="input-dark w-full rounded p-1 text-xs">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-slate-400 block">Baffle Width (cm)</label>
-                                <input type="number" id="spInputBaffle" value="20" step="1" class="input-dark w-full rounded p-1 text-xs">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="control-card p-4 rounded-xl">
-                    <h2 class="text-xs font-bold text-slate-300 mb-2">ROOM & LAYOUT</h2>
-                    <div class="grid grid-cols-2 gap-2 mb-2">
-                        <div><label class="text-[10px] text-slate-400">Width (X)</label><input type="number" id="spInputW" value="5.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-                        <div><label class="text-[10px] text-slate-400">Length (Y)</label><input type="number" id="spInputL" value="6.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-                    </div>
-                    <div class="mb-3"><label class="text-[10px] text-slate-400">Height (Z)</label><input type="number" id="spInputH" value="2.4" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-
-                    <div class="space-y-2 pt-2 border-t border-slate-700/50">
-                        <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Link Speakers</label><input type="checkbox" id="spInputMirror" checked class="accent-blue-500"></div>
-                        <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Mirror Around</label><select id="spMirrorMode" class="input-dark text-[10px] rounded p-1 w-24"><option value="room">Room Center</option><option value="listener">Listener</option></select></div>
-                        <div class="flex justify-between items-center pt-2 mt-2 border-t border-slate-700/50"><div class="flex items-center gap-2"><label class="text-xs text-slate-300">Method Overlay</label></div><select id="spOverlay" class="input-dark text-[10px] rounded p-1 w-32"><option value="none">None</option><option value="cardas">Cardas (Golden)</option><option value="thirds">Rule of Thirds</option></select></div>
-                    </div>
-                </div>
-
-                <div class="control-card p-4 rounded-xl border-slate-700 bg-slate-800/50 mt-4">
-                    <h2 class="text-xs font-bold text-slate-300 mb-2">VERTICAL POSITIONS (Z)</h2>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="text-[10px] text-slate-400 block">Speaker H.</label>
-                            <input type="number" id="spInputSpkZ" value="1.0" step="0.05" class="input-dark w-full rounded p-1 text-xs">
-                        </div>
-                        <div>
-                            <label class="text-[10px] text-slate-400 block">Listener H.</label>
-                            <input type="number" id="spInputListZ" value="1.1" step="0.05" class="input-dark w-full rounded p-1 text-xs">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="control-card p-4 rounded-xl mt-4">
-                    <div class="space-y-1 text-xs">
-                        <div class="flex justify-between"><span class="text-slate-400">Stereo Angle:</span> <span id="spAngleVal" class="font-mono text-white">--°</span></div>
-                        <div class="flex justify-between"><span class="text-slate-400">Spread:</span> <span id="spSpreadVal" class="font-mono text-slate-300">--m</span></div>
-                        <div class="flex justify-between"><span class="text-slate-400">Dist to Listener:</span> <span id="spDistVal" class="font-mono text-slate-300">--m</span></div>
-                    </div>
-                </div>
-            </aside>
-            <main class="flex-1 flex flex-col min-h-0 relative order-1 lg:order-2">
-                <div class="flex-1 relative bg-[#0b101e] overflow-hidden cursor-crosshair" id="spCanvasContainer">
-                    <div class="absolute top-4 left-4 z-10 glass-panel px-2 py-1 rounded border border-slate-700/50 flex gap-2 pointer-events-none select-none">
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-blue-500 rounded-sm"></div><span class="text-xs text-slate-300">Speaker</span></div>
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-xs text-slate-300">Listener</span></div>
-                    </div>
-                    <canvas id="spCanvas" class="block w-full h-full"></canvas>
-                </div>
-                
-                <div class="h-64 border-t border-slate-800 bg-slate-900 flex flex-col md:flex-row order-3">
-                    <div class="flex-1 p-2 relative flex flex-col h-full">
-                        <canvas id="sbirChart" class="flex-1"></canvas>
-                    </div>
-                    <div class="w-full md:w-56 border-l border-slate-800 p-4 overflow-y-auto bg-slate-900/50 text-[10px]">
-                        <h3 class="text-xs font-bold text-slate-300 mb-3 border-b border-slate-700 pb-2">GRAPH SETTINGS</h3>
-                        
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex items-center justify-between mb-1">
-                                    <label class="text-slate-400">Psychoacoustic Smoothing</label>
-                                    <input type="checkbox" id="spCheckSmoothing" class="accent-blue-500" checked>
-                                </div>
-                                <p class="text-slate-500 italic">1/3 Octave smoothing makes trends visible.</p>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="text-slate-400 block mb-1">Min Hz</label>
-                                    <input type="number" id="spInputMinHz" value="20" class="input-dark w-full rounded p-1">
-                                </div>
-                                <div>
-                                    <label class="text-slate-400 block mb-1">Max Hz</label>
-                                    <input type="number" id="spInputMaxHz" value="20000" class="input-dark w-full rounded p-1">
-                                </div>
-                            </div>
-
-                            <button id="btnSpUpdateGraph" class="btn-action w-full py-1.5 rounded text-white font-bold mt-2">UPDATE GRAPH</button>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    </div>
-    <div id="view-time-align" class="view-section">
-        <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
-            <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-                    <div class="flex items-center gap-3 border-l border-slate-700 pl-4"><h1 class="font-bold text-lg text-slate-100">Time & Phase Aligner</h1><p class="text-[10px] text-slate-400 uppercase hidden md:block">Delay Calculation</p></div>
-                </div>
-            </div>
-        </header>
-        <main class="flex-1 flex flex-col lg:flex-row max-w-6xl mx-auto w-full p-6 gap-8">
-            <div class="flex-1 space-y-6 max-w-md">
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
-                    <h2 class="text-sm font-bold text-purple-400 mb-4 uppercase tracking-wide">Measurements</h2>
-                    <div class="space-y-4">
-                        <div><label class="block text-xs text-slate-400 mb-1">Distance to Left Speaker (m)</label><input type="number" id="taDistL" value="3.0" step="0.01" class="input-dark w-full rounded p-2"></div>
-                        <div><label class="block text-xs text-slate-400 mb-1">Distance to Right Speaker (m)</label><input type="number" id="taDistR" value="3.0" step="0.01" class="input-dark w-full rounded p-2"></div>
-                        <div><label class="block text-xs text-slate-400 mb-1">Distance to Subwoofer (m)</label><input type="number" id="taDistSub" value="3.5" step="0.01" class="input-dark w-full rounded p-2"></div>
-                    </div>
-                </div>
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
-                    <h2 class="text-sm font-bold text-purple-400 mb-4 uppercase tracking-wide">Settings</h2>
-                    <div class="space-y-4">
-                         <div><label class="block text-xs text-slate-400 mb-1">Crossover Frequency (Hz)</label><input type="number" id="taCrossover" value="80" step="1" class="input-dark w-full rounded p-2"></div>
-                         <div><label class="block text-xs text-slate-400 mb-1">Speed of Sound (m/s)</label><input type="number" id="taSpeed" value="343" step="1" class="input-dark w-full rounded p-2"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="flex-1 space-y-6">
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 h-full flex flex-col justify-center items-center text-center">
-                    <div class="mb-8"><h3 class="text-2xl font-bold text-white mb-1">Delay Settings</h3><p class="text-slate-400 text-sm">Enter these values into your receiver / DSP.</p></div>
-                    <div class="grid grid-cols-3 gap-8 w-full max-w-lg mb-8">
-                        <div class="p-4 bg-slate-900/50 rounded-xl border border-slate-700"><div class="text-xs text-slate-500 uppercase mb-1">Left</div><div id="resDelayL" class="text-2xl font-mono text-purple-400 font-bold">0.00</div><div class="text-[10px] text-slate-600">ms</div></div>
-                        <div class="p-4 bg-slate-900/50 rounded-xl border border-slate-700"><div class="text-xs text-slate-500 uppercase mb-1">Right</div><div id="resDelayR" class="text-2xl font-mono text-purple-400 font-bold">0.00</div><div class="text-[10px] text-slate-600">ms</div></div>
-                        <div class="p-4 bg-slate-900/50 rounded-xl border border-slate-700"><div class="text-xs text-slate-500 uppercase mb-1">Sub</div><div id="resDelaySub" class="text-2xl font-mono text-blue-400 font-bold">0.00</div><div class="text-[10px] text-slate-600">ms</div></div>
-                    </div>
-                    <div class="w-full max-w-lg pt-8 border-t border-slate-700">
-                         <h3 class="text-lg font-bold text-white mb-4">Phase Analysis (@ <span id="resXoverDisp">80</span>Hz)</h3>
-                         <div class="flex items-center justify-between bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                             <div class="text-left"><div class="text-xs text-slate-400">Estimated Phase mismatch</div><div id="resPhaseDiff" class="text-xl font-bold text-white">0°</div></div>
-                             <div class="text-right"><div class="text-xs text-slate-400">Recommendation</div><div id="resPhaseRec" class="text-sm font-bold text-green-400 uppercase bg-green-900/30 px-2 py-1 rounded inline-block">Normal (0°)</div></div>
-                         </div>
-                         <p class="text-[10px] text-slate-500 mt-2">*Note: This assumes ideal conditions. DSP latency in active subwoofers (often 5-10ms) is NOT included.</p>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <div id="view-peq-gen" class="view-section">
-    <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
-        <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                </button>
-                <div class="flex items-center gap-3 border-l border-slate-700 pl-4">
-                    <h1 class="font-bold text-lg text-slate-100">Auto-PEQ Generator</h1>
-                    <p class="text-[10px] text-slate-400 uppercase hidden md:block">Filter Calculator</p>
-                </div>
-            </div>
-        </div>
-    </header>
     
-    <main class="flex-1 max-w-6xl mx-auto w-full p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <style>
+        /* Custom scrollbar for sidebar */
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        /* Tab active state styling */
+        .tab-btn.active { 
+            color: #60a5fa; /* text-blue-400 */
+            border-bottom-color: #3b82f6; /* border-blue-500 */
+            background-color: rgba(30, 41, 59, 0.5); /* bg-slate-800/50 */
+        }
+        
+        /* Disable touch actions on canvas to prevent scrolling while dragging */
+        canvas { touch-action: none; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-100 h-screen w-screen overflow-hidden flex flex-col font-sans">
+
+    <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 flex-none md:hidden z-50">
+        <div class="flex items-center gap-3">
+            <button id="btnMobileMenu" class="text-slate-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h1 class="font-bold text-lg tracking-tight">Audio <span class="text-blue-500">Lab</span></h1>
+        </div>
+        <button id="btnShareMobile" class="text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+        </button>
+    </header>
+
+    <div id="view-lab" class="flex-1 flex overflow-hidden relative">
+
+        <aside id="labSidebar" class="absolute inset-y-0 left-0 w-80 bg-slate-900/95 backdrop-blur-md border-r border-slate-800 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 z-40 flex flex-col shadow-2xl md:shadow-none">
             
-            <div class="space-y-6">
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
-                    <h2 class="text-xs font-bold text-pink-400 mb-4 uppercase">Analysis Settings</h2>
-                    <div class="space-y-4">
-                        
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Target Curve Profile</label>
-                            <select id="peqTargetCurve" class="input-dark w-full rounded p-2 text-sm" title="Selects the desired bass boost profile (Harman Curve).">
-                                <option value="0">Flat (0dB)</option>
-                                <option value="3">Harman (+3dB)</option>
-                                <option value="6" selected>Harman (+6dB)</option>
-                                <option value="9">Harman (+9dB)</option>
-                                <option value="12">Harman (+12dB)</option>
-                            </select>
-                            <p class="text-[10px] text-slate-500 mt-1">Selects the desired bass boost amount.</p>
-                        </div>
-
-                        <div class="pt-2">
-                            <div class="flex justify-between text-xs mb-1">
-                                <label class="text-slate-400">Target Level Offset</label>
-                                <span id="peqOffsetVal" class="text-pink-400 font-mono font-bold">0 dB</span>
-                            </div>
-                            <input type="range" id="peqTargetOffset" min="-20" max="10" step="0.5" value="0" class="range-slider w-full" title="Move the target line up/down to align with your measurement.">
-                            <p class="text-[10px] text-slate-500 mt-1">Move slider until the target line sits "inside" your response curve.</p>
-                        </div>
-
-                        <div class="pt-2 border-t border-slate-700/50">
-                            <div class="flex justify-between text-xs mb-1">
-                                <label class="text-slate-400">Intervention Threshold</label>
-                            </div>
-                            <input type="number" id="peqThreshold" value="1.5" step="0.1" min="0" class="input-dark w-full rounded p-2 text-sm" title="Peaks smaller than this will be ignored.">
-                            <p class="text-[10px] text-slate-500 mt-1">
-                                Ignore peaks smaller than X dB. Increases dynamics by not over-correcting.
-                            </p>
-                        </div>
-
-                        <div class="flex items-center justify-between pt-2 border-t border-slate-700/50" title="Averages the response of 3 seats (+/- 50cm side-to-side).">
-                            <div>
-                                <label class="text-xs text-slate-300 select-none cursor-pointer" for="peqCouchMode">Couch Mode (Avg. 3 seats)</label>
-                                <p class="text-[10px] text-slate-500">Widens the sweet spot.</p>
-                            </div>
-                            <input type="checkbox" id="peqCouchMode" class="accent-pink-500" checked>
-                        </div>
-
-                        <div class="pt-2 border-t border-slate-700/50">
-                            <label class="block text-xs text-slate-400 mb-1">Max Cut Limit (dB)</label>
-                            <input type="number" id="peqMaxCut" value="15" min="0" class="input-dark w-full rounded p-2 text-sm" title="Safety limit to prevent extreme filters.">
-                            <p class="text-[10px] text-slate-500 mt-1">Safety limit. Filters will not cut deeper than this.</p>
-                        </div>
-                        
-                        <div class="pt-2 border-t border-slate-700/50">
-                            <label class="block text-xs text-slate-400 mb-1">Correction Range (Hz)</label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <input type="number" id="peqMinFreq" value="20" class="input-dark w-full rounded p-2 text-sm" placeholder="Min">
-                                </div>
-                                <div>
-                                    <input type="number" id="peqMaxFreq" value="200" class="input-dark w-full rounded p-2 text-sm" placeholder="Max">
-                                </div>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">Frequency range to analyze and correct.</p>
-                        </div>
-
-                        <button id="btnCalcPEQ" class="btn-action w-full py-2 rounded text-sm font-bold text-white mt-2 shadow-lg shadow-pink-500/20">RE-CALCULATE</button>
-                    </div>
-                </div>
+            <div class="hidden md:flex items-center justify-between p-4 border-b border-slate-800 h-14 bg-slate-900 flex-none">
+                <h1 class="font-extrabold text-xl tracking-tight">Audio <span class="text-blue-500">Physics</span> Lab</h1>
             </div>
 
-            <div class="md:col-span-2 space-y-6">
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-6">
                 
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 h-64 md:h-96 relative">
-                    <canvas id="peqChart"></canvas>
-                </div>
-
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 min-h-[200px]">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-bold text-white">Suggested Filters</h2>
-                        <button id="btnCopyPEQ" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors hidden">Copy Text</button>
+                <div class="control-card bg-slate-800/50 p-4 rounded-xl border border-slate-700 shadow-sm">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Room Geometry</h2>
+                        <span class="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">Metric</span>
                     </div>
                     
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm text-slate-400">
-                            <thead class="text-xs text-slate-500 uppercase bg-slate-900/50 border-b border-slate-700">
-                                <tr>
-                                    <th class="px-4 py-3">Filter #</th>
-                                    <th class="px-4 py-3">Frequency</th>
-                                    <th class="px-4 py-3 text-pink-400">Gain</th>
-                                    <th class="px-4 py-3">Q-Factor</th>
-                                </tr>
-                            </thead>
-                            <tbody id="peqTableBody">
-                                <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-slate-600 italic">
-                                        Click "Calculate Filters" to analyze room modes.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Length (X)</label>
+                            <input type="number" id="globalInputL" value="5.0" step="0.1" class="input-dark w-full bg-slate-900 border border-slate-700 text-white rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Width (Y)</label>
+                            <input type="number" id="globalInputW" value="4.0" step="0.1" class="input-dark w-full bg-slate-900 border border-slate-700 text-white rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-400 block mb-1">Height (Z)</label>
+                        <input type="number" id="globalInputH" value="2.4" step="0.1" class="input-dark w-full bg-slate-900 border border-slate-700 text-white rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
                     </div>
                 </div>
+
+                <div id="labModeControls" class="space-y-4 min-h-[100px]">
+                    <div class="flex flex-col items-center justify-center h-24 text-slate-500 text-xs italic border-2 border-dashed border-slate-800 rounded-xl">
+                        Loading controls...
+                    </div>
+                </div>
+
             </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-900 text-[10px] text-slate-500 flex justify-between items-center flex-none">
+                <span>v2.0 Beta</span>
+                <button id="btnShareDesktop" class="flex items-center gap-1 hover:text-blue-400 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    Share config
+                </button>
+            </div>
+        </aside>
+
+        <div id="mobileMenuOverlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm z-30 hidden md:hidden transition-opacity"></div>
+
+
+        <main class="flex-1 flex flex-col relative min-w-0 bg-[#0b101e]">
             
-        </div>
-    </main>
-</div>
+            <nav class="h-12 bg-slate-900 border-b border-slate-800 flex items-center px-2 md:px-4 gap-1 md:gap-2 overflow-x-auto no-scrollbar z-20 flex-none shadow-md">
+                <button class="tab-btn active px-3 md:px-4 py-3 text-xs md:text-sm font-medium text-slate-300 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap focus:outline-none" data-mode="room">
+                    Room Modes
+                </button>
+                <button class="tab-btn px-3 md:px-4 py-3 text-xs md:text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap focus:outline-none" data-mode="speaker">
+                    Speaker Placement
+                </button>
+                <button class="tab-btn px-3 md:px-4 py-3 text-xs md:text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap focus:outline-none" data-mode="reflection">
+                    Reflections
+                </button>
+                
+                <div class="h-4 w-px bg-slate-700 mx-2 hidden md:block"></div>
+                
+                <button class="tab-btn px-3 md:px-4 py-3 text-xs md:text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap focus:outline-none" data-mode="timealign">
+                    Time Align
+                </button>
+            </nav>
 
-    <div id="view-reflection-sim" class="view-section desktop-lock">
-        <header class="bg-slate-900 border-b border-slate-800 h-16 flex-none z-20 sticky top-0">
-            <div class="h-full px-4 max-w-[1800px] mx-auto flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button onclick="app.navigate('dashboard')" class="flex items-center justify-center w-8 h-8 rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-                    <div class="flex items-center gap-3 border-l border-slate-700 pl-4"><h1 class="font-bold text-lg text-slate-100">Reflection Tracker</h1><p class="text-[10px] text-slate-400 uppercase hidden md:block">First Reflection Points</p></div>
+            <div class="flex-1 relative overflow-hidden group cursor-crosshair">
+                
+                <canvas id="labCanvas" class="block w-full h-full outline-none"></canvas>
+                
+                <div class="absolute top-4 left-4 z-10 glass-panel bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700/50 flex gap-4 pointer-events-none select-none shadow-lg">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 bg-blue-500 rounded-sm shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                        <span class="text-xs text-slate-200 font-medium">Speaker</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
+                        <span class="text-xs text-slate-200 font-medium">Listener</span>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-3 left-3 z-10 text-[10px] font-mono text-slate-400 pointer-events-none bg-slate-900/80 px-2 py-1 rounded border border-slate-800/50 flex gap-3">
+                    <span>X: <span id="debugX" class="text-slate-200 font-bold">0.00</span>m</span> 
+                    <span>Y: <span id="debugY" class="text-slate-200 font-bold">0.00</span>m</span>
                 </div>
             </div>
-        </header>
-        <div class="flex-1 flex flex-col lg:flex-row bg-[#0f172a] lg:overflow-hidden">
-            <aside class="w-full lg:w-80 flex-none bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 order-2 lg:order-1 lg:overflow-y-auto">
-                <div class="control-card p-4 rounded-xl border-orange-900/30 bg-orange-950/10">
-                    <div class="flex justify-between items-center mb-2"><h2 class="text-xs font-bold text-orange-400">SETTINGS</h2></div>
-                    <div class="space-y-2">
-                         <div class="flex items-center justify-between"><label class="text-xs text-slate-300">Show Side Walls</label><input type="checkbox" id="rfShowSide" checked class="accent-orange-500"></div>
-                         <div class="flex items-center justify-between"><label class="text-xs text-slate-300">Show Front Wall</label><input type="checkbox" id="rfShowFront" class="accent-orange-500"></div>
-                         <div class="flex items-center justify-between"><label class="text-xs text-slate-300">Show Back Wall</label><input type="checkbox" id="rfShowBack" class="accent-orange-500"></div>
+
+            <div id="labBottomPanel" class="h-64 bg-slate-900 border-t border-slate-800 flex flex-col transition-all duration-300 ease-in-out shadow-[0_-4px_20px_rgba(0,0,0,0.3)] z-30 flex-none">
+                
+                <div id="toggleBottomPanel" class="h-8 bg-slate-800 hover:bg-slate-750 border-b border-slate-700 flex justify-between items-center px-4 cursor-pointer select-none transition-colors group">
+                    <div class="flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:shadow-[0_0_8px_rgba(59,130,246,0.8)] transition-shadow"></span>
+                        <span id="bottomPanelTitle" class="text-xs font-bold text-slate-300 uppercase tracking-wide">Analysis Data</span>
+                    </div>
+                    <button class="text-slate-400 hover:text-white transition-colors">
+                        <svg id="bottomPanelIcon" class="w-4 h-4 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
+
+                <div id="labBottomContent" class="flex-1 relative p-0 overflow-hidden bg-slate-900">
+                    <div class="flex h-full items-center justify-center text-slate-600 text-xs italic">
+                        Select a mode to generate data...
                     </div>
                 </div>
-                <div class="control-card p-4 rounded-xl">
-                    <h2 class="text-xs font-bold text-slate-300 mb-3">ROOM & LAYOUT</h2>
-                    <div class="grid grid-cols-2 gap-2 mb-3">
-                        <div><label class="text-[10px] text-slate-400">Width (X)</label><input type="number" id="rfInputW" value="5.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-                        <div><label class="text-[10px] text-slate-400">Length (Y)</label><input type="number" id="rfInputL" value="6.0" step="0.1" class="input-dark w-full rounded p-1 text-sm"></div>
-                    </div>
-                    <div class="space-y-2 pt-2 border-t border-slate-700/50">
-                        <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Link Speakers</label><input type="checkbox" id="rfInputMirror" checked class="accent-orange-500"></div>
-                        <div class="flex justify-between items-center"><label class="text-xs text-slate-300">Mirror Around</label><select id="rfMirrorMode" class="input-dark text-[10px] rounded p-1 w-24"><option value="room">Room Center</option><option value="listener">Listener</option></select></div>
-                    </div>
-                </div>
-                <div class="control-card p-4 rounded-xl">
-                    <h2 class="text-xs font-bold text-slate-300 mb-2">REFLECTION INFO</h2>
-                    <p class="text-[10px] text-slate-400">The orange dots on the walls mark where acoustic panels should be placed to absorb first reflections.</p>
-                </div>
-            </aside>
-            <main class="flex-1 flex flex-col min-h-0 relative order-1 lg:order-2">
-    <div class="w-full aspect-square lg:aspect-auto lg:h-full relative bg-[#0b101e] overflow-hidden cursor-crosshair" id="rfCanvasContainer">
-        <canvas id="rfCanvas" class="block w-full h-full"></canvas>
-    </div>
-</main>
-        </div>
+            </div>
+
+        </main>
     </div>
 
-    <script src="js/main.js"></script>
     <script src="js/state-manager.js"></script>
-    <script src="js/room-sim.js"></script>
-    <script src="js/speaker-sim.js"></script>
-    <script src="js/time-align.js"></script>
-    <script src="js/reflection-sim.js"></script>
-    <script src="js/peq-gen.js"></script>
-</body>
+    
+    <script src="js/lab-renderer.js"></script>
+    <script src="js/lab-modes.js"></script> <script src="js/lab-controller.js"></script>
+    <script src="js/lab-controller.js"></script>
+    
+    </body>
 </html>
