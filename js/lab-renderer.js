@@ -1,7 +1,6 @@
 /**
  * js/lab-renderer.js
  * Grafikk-motoren for Audio Physics Lab 2.0.
- * Inkluderer nå: Hjelpestreker (Measurements) og Speiling (Mirroring).
  */
 
 class LabRenderer {
@@ -11,15 +10,12 @@ class LabRenderer {
         
         this.ctx = this.canvas.getContext('2d');
         this.stateManager = stateManager;
-        
         this.activeMode = null; 
-        
+        this.mirrorOverride = null; 
+
         this.isDragging = null;
         this.hovered = null;
         this.padding = 40;
-
-        // Settings for mirroring (Disse settes av Controller/Mode)
-        this.mirrorSettings = { enabled: false, mode: 'room' }; // mode: 'room' | 'listener'
 
         this.bindEvents();
         this.resize();
@@ -27,7 +23,6 @@ class LabRenderer {
         requestAnimationFrame(this.loop);
     }
 
-    // --- KOORDINATSYSTEMER ---
     toPx(meters, axis) {
         const s = this.stateManager.get();
         const canvasDim = axis === 'x' ? this.canvas.width / this.dpr : this.canvas.height / this.dpr;
@@ -43,11 +38,9 @@ class LabRenderer {
         const contentSize = canvasDim - 2 * this.padding;
         if (contentSize <= 0) return 0;
         const val = ((px - this.padding) / contentSize) * roomDim;
-        // Clamp verdien slik at man ikke kan dra objekter utenfor veggene
         return Math.max(0, Math.min(roomDim, val));
     }
 
-    // --- TEGNE-PRIMITIVER ---
     clear() {
         const w = this.canvas.width;
         const h = this.canvas.height;
@@ -57,128 +50,70 @@ class LabRenderer {
 
     drawRoom() {
         const s = this.stateManager.get();
-        const x0 = this.toPx(0, 'x');
-        const y0 = this.toPx(0, 'y');
-        const x1 = this.toPx(s.room.width, 'x');
-        const y1 = this.toPx(s.room.length, 'y');
+        const x0 = this.toPx(0, 'x'); const y0 = this.toPx(0, 'y');
+        const x1 = this.toPx(s.room.width, 'x'); const y1 = this.toPx(s.room.length, 'y');
 
         this.ctx.fillStyle = '#111827';
         this.ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
 
-        this.ctx.strokeStyle = '#1e293b';
-        this.ctx.lineWidth = 1;
-        this.ctx.setLineDash([]); 
-        this.ctx.beginPath();
-        
-        for (let i = 1; i < s.room.width; i++) {
-            const x = this.toPx(i, 'x');
-            this.ctx.moveTo(x, y0); this.ctx.lineTo(x, y1);
-        }
-        for (let i = 1; i < s.room.length; i++) {
-            const y = this.toPx(i, 'y');
-            this.ctx.moveTo(x0, y); this.ctx.lineTo(x1, y);
-        }
+        this.ctx.strokeStyle = '#1e293b'; this.ctx.lineWidth = 1; this.ctx.setLineDash([]); this.ctx.beginPath();
+        for (let i = 1; i < s.room.width; i++) { const x = this.toPx(i, 'x'); this.ctx.moveTo(x, y0); this.ctx.lineTo(x, y1); }
+        for (let i = 1; i < s.room.length; i++) { const y = this.toPx(i, 'y'); this.ctx.moveTo(x0, y); this.ctx.lineTo(x1, y); }
         this.ctx.stroke();
 
-        this.ctx.strokeStyle = '#334155';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+        this.ctx.strokeStyle = '#334155'; this.ctx.lineWidth = 2; this.ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
     }
 
-    // PUNKT 2: Hjelpestreker med piler
     drawMeasurements(obj, color) {
-        const x = obj.x;
-        const y = obj.y;
-        const s = this.stateManager.get();
-        
-        const px = this.toPx(x, 'x');
-        const py = this.toPx(y, 'y');
-        const x0 = this.toPx(0, 'x');
-        const x1 = this.toPx(s.room.width, 'x');
-        const y0 = this.toPx(0, 'y');
-        const y1 = this.toPx(s.room.length, 'y');
+        const x = obj.x; const y = obj.y; const s = this.stateManager.get();
+        const px = this.toPx(x, 'x'); const py = this.toPx(y, 'y');
+        const x0 = this.toPx(0, 'x'); const x1 = this.toPx(s.room.width, 'x');
+        const y0 = this.toPx(0, 'y'); const y1 = this.toPx(s.room.length, 'y');
 
         this.ctx.save();
-        this.ctx.strokeStyle = '#ef4444'; // Rød farge for mål
-        this.ctx.fillStyle = '#ef4444';
-        this.ctx.lineWidth = 1;
-        this.ctx.font = '10px sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
+        this.ctx.strokeStyle = '#ef4444'; this.ctx.fillStyle = '#ef4444'; this.ctx.lineWidth = 1;
+        this.ctx.font = '10px sans-serif'; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
 
-        // Hjelpefunksjon for pil
         const drawArrowLine = (xStart, yStart, xEnd, yEnd, val) => {
             this.ctx.beginPath(); this.ctx.moveTo(xStart, yStart); this.ctx.lineTo(xEnd, yEnd); this.ctx.stroke();
-            
-            // Pilhode
-            const ang = Math.atan2(yEnd - yStart, xEnd - xStart);
-            const h = 6;
-            this.ctx.beginPath();
-            this.ctx.moveTo(xEnd, yEnd);
+            const ang = Math.atan2(yEnd - yStart, xEnd - xStart); const h = 6;
+            this.ctx.beginPath(); this.ctx.moveTo(xEnd, yEnd);
             this.ctx.lineTo(xEnd - h * Math.cos(ang - Math.PI / 6), yEnd - h * Math.sin(ang - Math.PI / 6));
             this.ctx.lineTo(xEnd - h * Math.cos(ang + Math.PI / 6), yEnd - h * Math.sin(ang + Math.PI / 6));
             this.ctx.fill();
-
-            // Tekst med bakgrunn
-            const mx = (xStart + xEnd) / 2;
-            const my = (yStart + yEnd) / 2;
-            const txt = val.toFixed(2) + 'm';
-            const met = this.ctx.measureText(txt);
-            
-            this.ctx.save();
-            this.ctx.fillStyle = '#0f172a';
-            this.ctx.fillRect(mx - met.width / 2 - 2, my - 6, met.width + 4, 12);
-            this.ctx.restore();
+            const mx = (xStart + xEnd) / 2; const my = (yStart + yEnd) / 2;
+            const txt = val.toFixed(2) + 'm'; const met = this.ctx.measureText(txt);
+            this.ctx.save(); this.ctx.fillStyle = '#0f172a'; this.ctx.fillRect(mx - met.width / 2 - 2, my - 6, met.width + 4, 12); this.ctx.restore();
             this.ctx.fillText(txt, mx, my);
         };
 
-        // Tegn linje til nærmeste vegger
         if (x < s.room.width / 2) drawArrowLine(px - 10, py, x0, py, x);
         else drawArrowLine(px + 10, py, x1, py, s.room.width - x);
-
         if (y < s.room.length / 2) drawArrowLine(px, py - 10, px, y0, y);
         else drawArrowLine(px, py + 10, px, y1, s.room.length - y);
-
         this.ctx.restore();
     }
 
     drawEntity(type, x, y, label) {
-        const px = this.toPx(x, 'x');
-        const py = this.toPx(y, 'y');
-        
+        const px = this.toPx(x, 'x'); const py = this.toPx(y, 'y');
         const isHover = this.hovered === label;
         const isActive = this.isDragging === label;
         
-        // Hvis aktiv eller hover, tegn hjelpestreker FØR vi translaterer
-        if (isHover || isActive) {
-            this.drawMeasurements({x, y}, '#ef4444');
-        }
+        if (isHover || isActive) this.drawMeasurements({x, y}, '#ef4444');
 
-        this.ctx.save();
-        this.ctx.translate(px, py);
-
+        this.ctx.save(); this.ctx.translate(px, py);
         let color = '#94a3b8';
-        if (type === 'speaker') color = '#3b82f6';
-        if (type === 'sub') color = '#a855f7';
-        if (type === 'listener') color = '#22c55e';
-
-        if (isHover || isActive) {
-            this.ctx.shadowColor = color;
-            this.ctx.shadowBlur = 15;
-        }
-
+        if (type === 'speaker') color = '#3b82f6'; if (type === 'sub') color = '#a855f7'; if (type === 'listener') color = '#22c55e';
+        if (isHover || isActive) { this.ctx.shadowColor = color; this.ctx.shadowBlur = 15; }
         this.ctx.fillStyle = color;
-
         if (type === 'speaker' || type === 'sub') {
             this.ctx.fillRect(-12, -12, 24, 24);
             if (type === 'speaker') {
-                this.ctx.fillStyle = '#1e3a8a';
-                this.ctx.beginPath(); this.ctx.moveTo(-6, -12); this.ctx.lineTo(6, -12); this.ctx.lineTo(0, 0); this.ctx.fill();
+                this.ctx.fillStyle = '#1e3a8a'; this.ctx.beginPath(); this.ctx.moveTo(-6, -12); this.ctx.lineTo(6, -12); this.ctx.lineTo(0, 0); this.ctx.fill();
             }
         } else if (type === 'listener') {
             this.ctx.beginPath(); this.ctx.arc(0, 0, 10, 0, Math.PI * 2); this.ctx.fill();
-            this.ctx.fillStyle = '#064e3b';
-            this.ctx.beginPath(); this.ctx.moveTo(-4, -8); this.ctx.lineTo(4, -8); this.ctx.lineTo(0, -14); this.ctx.fill();
+            this.ctx.fillStyle = '#064e3b'; this.ctx.beginPath(); this.ctx.moveTo(-4, -8); this.ctx.lineTo(4, -8); this.ctx.lineTo(0, -14); this.ctx.fill();
         }
         this.ctx.restore();
     }
@@ -186,29 +121,16 @@ class LabRenderer {
     loop() {
         this.dpr = window.devicePixelRatio || 1;
         const rect = this.canvas.getBoundingClientRect();
-        if (this.canvas.width !== Math.floor(rect.width * this.dpr) || 
-            this.canvas.height !== Math.floor(rect.height * this.dpr)) {
-            this.resize();
-        }
+        if (this.canvas.width !== Math.floor(rect.width * this.dpr) || this.canvas.height !== Math.floor(rect.height * this.dpr)) this.resize();
         
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.scale(this.dpr, this.dpr);
-        
-        this.clear();
-        this.drawRoom();
-
-        if (this.activeMode && typeof this.activeMode.draw === 'function') {
-            this.ctx.save();
-            this.activeMode.draw(this.ctx);
-            this.ctx.restore();
-        }
-
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.ctx.scale(this.dpr, this.dpr);
+        this.clear(); this.drawRoom();
+        if (this.activeMode && typeof this.activeMode.draw === 'function') { this.ctx.save(); this.activeMode.draw(this.ctx); this.ctx.restore(); }
         const s = this.stateManager.get();
         if (s.speakers.left) this.drawEntity('speaker', s.speakers.left.x, s.speakers.left.y, 'left');
         if (s.speakers.right) this.drawEntity('speaker', s.speakers.right.x, s.speakers.right.y, 'right');
         if (s.speakers.sub) this.drawEntity('sub', s.speakers.sub.x, s.speakers.sub.y, 'sub');
         if (s.listener) this.drawEntity('listener', s.listener.x, s.listener.y, 'listener');
-
         requestAnimationFrame(this.loop);
     }
 
@@ -227,44 +149,83 @@ class LabRenderer {
             return { rawX: clientX - rect.left, rawY: clientY - rect.top };
         };
 
-        const handleDown = (e) => {
-            if (e.cancelable && e.target === this.canvas) e.preventDefault();
-            const p = getPos(e);
-            const mx = this.toMeters(p.rawX * this.dpr, 'x');
-            const my = this.toMeters(p.rawY * this.dpr, 'y');
-            
+        // HJELPEFUNKSJON: Finn nærmeste objekt
+        const findClosestObject = (mx, my) => {
             const s = this.stateManager.get();
-            const hitDist = 0.6;
-            const check = (obj) => obj && Math.hypot(mx - obj.x, my - obj.y) < hitDist;
-
-            this.isDragging = null;
-            if (check(s.listener)) this.isDragging = 'listener';
-            else if (check(s.speakers.left)) this.isDragging = 'left';
-            else if (check(s.speakers.right)) this.isDragging = 'right';
-            else if (check(s.speakers.sub)) this.isDragging = 'sub';
+            const hitDist = 0.35; // Hitbox radius (meter)
             
+            // Liste over alle mulige objekter
+            const candidates = [
+                { id: 'listener', obj: s.listener },
+                { id: 'left', obj: s.speakers.left },
+                { id: 'right', obj: s.speakers.right },
+                { id: 'sub', obj: s.speakers.sub }
+            ];
+
+            let closestId = null;
+            let minDistance = Infinity;
+
+            candidates.forEach(cand => {
+                if (!cand.obj) return;
+                const d = Math.hypot(mx - cand.obj.x, my - cand.obj.y);
+                
+                // Må være innenfor hitDist OG nærmere enn forrige kandidat
+                if (d < hitDist && d < minDistance) {
+                    minDistance = d;
+                    closestId = cand.id;
+                }
+            });
+
+            return closestId;
+        };
+
+        const handleDown = (e) => {
+            if (e.cancelable) e.preventDefault();
+            const p = getPos(e);
+            const mx = this.toMeters(p.rawX, 'x'); 
+            const my = this.toMeters(p.rawY, 'y');
+            
+            // Sjekk padding
+            const contentW = this.canvas.width / this.dpr;
+            const contentH = this.canvas.height / this.dpr;
+            const pad = this.padding;
+            if (p.rawX < pad - 10 || p.rawX > contentW - pad + 10 ||
+                p.rawY < pad - 10 || p.rawY > contentH - pad + 10) {
+                return;
+            }
+
+            // Bruk ny logikk for å finne nærmeste
+            this.isDragging = findClosestObject(mx, my);
             this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'default';
         };
 
         const handleMove = (e) => {
-            const p = getPos(e);
-            const mx = this.toMeters(p.rawX * this.dpr, 'x');
-            const my = this.toMeters(p.rawY * this.dpr, 'y');
+            if (this.isDragging && e.cancelable) e.preventDefault();
             
+            const p = getPos(e);
+            const mx = this.toMeters(p.rawX, 'x'); 
+            const my = this.toMeters(p.rawY, 'y');
+            
+            // Debug info
             const debugX = document.getElementById('debugX');
             const debugY = document.getElementById('debugY');
             if(debugX) debugX.innerText = mx.toFixed(2);
             if(debugY) debugY.innerText = my.toFixed(2);
 
+            // HOVER LOGIKK
             if (!this.isDragging) {
-                const s = this.stateManager.get();
-                const hitDist = 0.6;
-                const check = (obj) => obj && Math.hypot(mx - obj.x, my - obj.y) < hitDist;
+                // Sjekk padding igjen for hover
+                const contentW = this.canvas.width / this.dpr;
+                const contentH = this.canvas.height / this.dpr;
+                const pad = this.padding;
+                const outside = (p.rawX < pad - 10 || p.rawX > contentW - pad + 10 || p.rawY < pad - 10 || p.rawY > contentH - pad + 10);
+
                 let h = null;
-                if (check(s.listener)) h = 'listener';
-                else if (check(s.speakers.left)) h = 'left';
-                else if (check(s.speakers.right)) h = 'right';
-                else if (check(s.speakers.sub)) h = 'sub';
+                if (!outside) {
+                    // Bruk samme "finn nærmeste" logikk for hover
+                    h = findClosestObject(mx, my);
+                }
+                
                 if (this.hovered !== h) {
                     this.hovered = h;
                     this.canvas.style.cursor = h ? 'grab' : 'default';
@@ -272,11 +233,13 @@ class LabRenderer {
                 return;
             }
 
-            if (e.cancelable) e.preventDefault();
-
-            // PUNKT 3: Speiling-logikk
+            // DRAG LOGIKK
             const s = this.stateManager.get();
             const updates = { speakers: { ...s.speakers }, listener: { ...s.listener } };
+
+            let mirroringEnabled = s.mirror.enabled;
+            if (this.mirrorOverride !== null) mirroringEnabled = this.mirrorOverride;
+            const mirrorMode = s.mirror.mode;
 
             if (this.isDragging === 'listener') {
                 updates.listener.x = mx;
@@ -288,18 +251,14 @@ class LabRenderer {
                 updates.speakers.left.x = mx;
                 updates.speakers.left.y = my;
                 
-                if (this.mirrorSettings.enabled) {
-                    updates.speakers.right.y = my; // Alltid samme dybde
-                    if (this.mirrorSettings.mode === 'room') {
-                        // Speil rundt rom-senter
+                if (mirroringEnabled) {
+                    updates.speakers.right.y = my; 
+                    if (mirrorMode === 'room') {
                         updates.speakers.right.x = s.room.width - mx;
                     } else {
-                        // Speil rundt lytter
-                        // distanse fra venstre til lytter
                         const dist = s.listener.x - mx;
                         updates.speakers.right.x = s.listener.x + dist;
                     }
-                    // Clamp
                     updates.speakers.right.x = Math.max(0.1, Math.min(updates.speakers.right.x, s.room.width - 0.1));
                 }
 
@@ -307,9 +266,9 @@ class LabRenderer {
                 updates.speakers.right.x = mx;
                 updates.speakers.right.y = my;
                 
-                if (this.mirrorSettings.enabled) {
+                if (mirroringEnabled) {
                     updates.speakers.left.y = my;
-                    if (this.mirrorSettings.mode === 'room') {
+                    if (mirrorMode === 'room') {
                         updates.speakers.left.x = s.room.width - mx;
                     } else {
                         const dist = mx - s.listener.x;
@@ -320,13 +279,13 @@ class LabRenderer {
             }
 
             this.stateManager.update(updates);
-            
-             if (this.activeMode && typeof this.activeMode.updateChart === 'function') {
+            if (this.activeMode && typeof this.activeMode.updateChart === 'function') {
                  this.activeMode.updateChart();
-             }
+            }
         };
 
-        const handleUp = () => {
+        const handleUp = (e) => {
+            if (e.cancelable) e.preventDefault();
             this.isDragging = null;
             this.canvas.style.cursor = this.hovered ? 'grab' : 'default';
         };

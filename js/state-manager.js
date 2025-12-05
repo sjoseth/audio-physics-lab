@@ -1,7 +1,6 @@
 /**
  * js/state-manager.js
  * Central State Management for Audio Physics Lab
- * UPDATED: Added Advanced Speaker Params
  */
 (function() {
     const STORAGE_KEY = 'audio_lab_project_v3';
@@ -14,15 +13,19 @@
             right: { x: 3.75, y: 1.0, z: 1.0 },
             sub: { x: 1.25, y: 0.5, z: 0.3 }
         },
-        // NEW: Advanced Speaker Physics
+        // NYTT: Global speiling
+        mirror: { 
+            enabled: true, 
+            mode: 'room' // 'room' eller 'listener'
+        },
         advanced: {
-            toeInMode: 'auto', // 'auto' or 'manual'
-            toeInAngle: 10,    // degrees
-            wooferSize: 6.5,   // inches
-            tweeterSize: 1.0,  // inches
-            tweeterType: 'dome', // 'dome' or 'horn'
-            crossover: 2500,   // Hz
-            baffleWidth: 20    // cm
+            toeInMode: 'auto',
+            toeInAngle: 10,
+            wooferSize: 6.5,
+            tweeterSize: 1.0,
+            tweeterType: 'dome',
+            crossover: 2500,
+            baffleWidth: 20
         },
         settings: { unit: 'metric' }
     };
@@ -78,7 +81,6 @@
             p.set('sr', join(s.speakers.right.x, s.speakers.right.y, s.speakers.right.z));
             p.set('sb', join(s.speakers.sub.x, s.speakers.sub.y, s.speakers.sub.z));
             
-            // Order: toeInMode(0=auto,1=man), angle, woofer, tweeter, xover, baffle, type(0=dome,1=horn)
             const mode = s.advanced.toeInMode === 'auto' ? 0 : 1;
             const type = s.advanced.tweeterType === 'dome' ? 0 : 1;
             p.set('adv', `${mode},${s.advanced.toeInAngle},${s.advanced.wooferSize},${s.advanced.tweeterSize},${s.advanced.crossover},${s.advanced.baffleWidth},${type}`);
@@ -88,7 +90,6 @@
 
         loadFromUrl(params) {
             const parse = (key) => params.get(key).split(',').map(Number);
-
             if (params.has('r')) {
                 const [w, l, h] = parse('r');
                 this.state.room = { width: w, length: l, height: h };

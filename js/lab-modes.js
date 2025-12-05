@@ -1,13 +1,9 @@
 /**
  * js/lab-modes.js
- * Inneholder logikken for hver visningsmodus (Room, Speaker, Reflection).
- * Oppdatert funksjonalitet:
- * - X-akse er nå 'linear' for piksel-perfekt Hz-plassering.
- * - Smart Y-skalering: Ignorerer rolloff-haler.
- * - SEPARAT nivåmatching (Gain) for Sub og Mains mot Target Curve i deres respektive pass-band.
- * - Visning av Sub, Mains og Combined.
- * - Dynamisk "Culling" av data (viser ikke data < -35dB).
- * - FIX: Implementert ekte Linkwitz-Riley 4 (LR4) filterformel for å unngå +6dB boost ved crossover.
+ * Inneholder logikken for hver visningsmodus (Room, Speaker, Reflection, TimeAlign).
+ * * OPPDATERT: 
+ * - Global speilings-støtte via StateManager.
+ * - TimeAlignMode tvinger speiling av.
  */
 
 // --- BASE CLASS ---
@@ -66,12 +62,22 @@ class RoomMode extends LabMode {
         this.lastRoomDims = { w: 0, l: 0, h: 0 };
     }
 
+    onEnter() {
+        this.active = true;
+        // Bruk global mirror state som standard
+        this.renderer.mirrorOverride = null;
+    }
+
     getSidebarHTML() {
+        const s = this.state.get();
+        // Hent speilingsstatus fra global state
+        const mirrorEnabled = s.mirror.enabled;
+        const mirrorMode = s.mirror.mode;
+
         return `
             <div class="control-card p-4 rounded-xl bg-blue-950/20 border border-blue-900/30 space-y-4">
                 <h3 class="text-xs font-bold text-blue-400 uppercase">Optimization</h3>
                 
-                <!-- Target Curve -->
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Target Curve</label>
                     <select id="rmInputTarget" class="input-dark w-full rounded p-1.5 text-xs bg-slate-900 border border-slate-700 text-white">
@@ -83,21 +89,18 @@ class RoomMode extends LabMode {
                     </select>
                 </div>
 
-                <!-- Crossover -->
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Crossover (Hz)</label>
                     <input type="range" id="rmInputXover" min="40" max="150" value="${this.settings.crossover}" class="range-slider w-full">
                     <div class="flex justify-between text-[10px] text-slate-500"><span>40Hz</span><span id="rmDispXover" class="text-white">${this.settings.crossover}Hz</span><span>150Hz</span></div>
                 </div>
 
-                <!-- Max Freq View -->
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Max Frequency View</label>
                     <input type="range" id="rmInputMaxF" min="100" max="300" step="10" value="${this.settings.maxFreq}" class="range-slider w-full">
                     <div class="flex justify-between text-[10px] text-slate-500"><span>100Hz</span><span id="rmDispMaxF" class="text-white">${this.settings.maxFreq}Hz</span><span>300Hz</span></div>
                 </div>
 
-                <!-- Graph Toggles -->
                 <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
                     <label class="flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer">
                         <input type="checkbox" id="rmToggleSub" ${this.visibility.sub ? 'checked' : ''} class="accent-blue-500"> Subwoofer
@@ -113,7 +116,6 @@ class RoomMode extends LabMode {
                     </label>
                 </div>
 
-                <!-- Couch Mode -->
                 <div class="flex items-center justify-between pt-2 border-t border-slate-800/50">
                     <label class="text-xs text-slate-300">Couch Mode (Avg 3 seats)</label>
                     <input type="checkbox" id="rmCheckCouch" ${this.settings.couchMode ? 'checked' : ''} class="accent-blue-500">
@@ -147,13 +149,13 @@ class RoomMode extends LabMode {
                 <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Layout & Mirroring</h3>
                 <div class="flex items-center justify-between mb-2">
                     <label class="text-xs text-slate-300">Link Speakers</label>
-                    <input type="checkbox" id="rmCheckMirror" class="accent-blue-500">
+                    <input type="checkbox" id="rmCheckMirror" class="accent-blue-500" ${mirrorEnabled ? 'checked' : ''}>
                 </div>
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] text-slate-400">Mirror Around</label>
                     <select id="rmSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-28 bg-slate-900 border border-slate-700 text-white">
-                        <option value="room">Room Center</option>
-                        <option value="listener">Listener</option>
+                        <option value="room" ${mirrorMode === 'room' ? 'selected' : ''}>Room Center</option>
+                        <option value="listener" ${mirrorMode === 'listener' ? 'selected' : ''}>Listener</option>
                     </select>
                 </div>
             </div>
@@ -215,15 +217,20 @@ class RoomMode extends LabMode {
             setTimeout(() => this.generateHeatmap(btn), 50);
         });
 
-        // Mirroring logic
+        // Mirroring logic - UPDATED TO GLOBAL STATE
         const checkMirror = document.getElementById('rmCheckMirror');
         const selMirror = document.getElementById('rmSelectMirrorMode');
-        const updateMirrorSettings = () => {
-            this.renderer.mirrorSettings = { enabled: checkMirror.checked, mode: selMirror.value };
+        
+        const updateMirror = () => {
+            this.state.update({ 
+                mirror: { 
+                    enabled: checkMirror.checked, 
+                    mode: selMirror.value 
+                } 
+            });
         };
-        checkMirror.addEventListener('change', updateMirrorSettings);
-        selMirror.addEventListener('change', updateMirrorSettings);
-        this.renderer.mirrorSettings = { enabled: false, mode: 'room' }; 
+        checkMirror.addEventListener('change', updateMirror);
+        selMirror.addEventListener('change', updateMirror);
 
         // Z-height sync
         const subZ = document.getElementById('rmInputSubZ');
@@ -284,28 +291,24 @@ class RoomMode extends LabMode {
         }
     }
 
-    // --- PHYSICS (Max F changed to 300 to support extended view) ---
+    // ... (rest of Physics methods unchanged) ...
     calculateModes(width, length, height) {
         if (this.lastRoomDims.w === width && this.lastRoomDims.l === length && this.lastRoomDims.h === height && this.cachedModes.length > 0) {
             return this.cachedModes;
         }
-        
         const modes = [];
         const L = width; const W = length; const H = height;
-        const maxOrder = 20; const tanLim = 8; const maxF = 400; // Increased limit for simulation
+        const maxOrder = 20; const tanLim = 8; const maxF = 400;
 
-        // 1. Axial
         for (let n = 1; n <= maxOrder; n++) {
             let f = (this.C / 2) * (n / L); if (f < maxF) modes.push({ f, nx: n, ny: 0, nz: 0 });
             f = (this.C / 2) * (n / W); if (f < maxF) modes.push({ f, nx: 0, ny: n, nz: 0 });
             f = (this.C / 2) * (n / H); if (f < maxF) modes.push({ f, nx: 0, ny: 0, nz: n });
         }
-        // 2. Tangential XY
         for (let x = 1; x <= tanLim; x++) for (let y = 1; y <= tanLim; y++) {
             const f = (this.C / 2) * Math.sqrt((x / L) ** 2 + (y / W) ** 2);
             if (f < maxF) modes.push({ f, nx: x, ny: y, nz: 0 });
         }
-        // 3. Tangential XZ/YZ
         for (let x = 1; x <= tanLim; x++) for (let z = 1; z <= tanLim; z++) {
             const f = (this.C / 2) * Math.sqrt((x / L) ** 2 + (z / H) ** 2);
             if (f < maxF) modes.push({ f, nx: x, ny: 0, nz: z });
@@ -314,7 +317,6 @@ class RoomMode extends LabMode {
             const f = (this.C / 2) * Math.sqrt((y / W) ** 2 + (z / H) ** 2);
             if (f < maxF) modes.push({ f, nx: 0, ny: y, nz: z });
         }
-        // Oblique
         for (let x = 1; x <= 4; x++) for (let y = 1; y <= 4; y++) for (let z = 1; z <= 4; z++) {
              const f = (this.C / 2) * Math.sqrt((x / L) ** 2 + (y / W) ** 2 + (z / H) ** 2);
              if (f < maxF) modes.push({ f, nx: x, ny: y, nz: z });
@@ -339,7 +341,6 @@ class RoomMode extends LabMode {
                     val = maxBoost * (1 - (1 - Math.cos(ratio * Math.PI)) / 2);
                 }
             }
-            // Push coordinates for linear scale
             data.push({ x: f, y: val });
         }
         return data;
@@ -348,14 +349,12 @@ class RoomMode extends LabMode {
     simulatePoint(modes, srcPos, recPos, width, length, height, maxFCalc = 300) {
         const data = [];
         const minF = 20; 
-        
         const dist = Math.hypot(srcPos.x - recPos.x, srcPos.y - recPos.y, (srcPos.z||0) - (recPos.z||0)) || 0.1;
         const dirScale = 100 / dist; 
 
         for (let f = minF; f <= maxFCalc; f++) {
             let r = 0; let i = 0;
             const k = (2 * Math.PI * f) / this.C;
-            
             r += dirScale * Math.cos(-k * dist);
             i += dirScale * Math.sin(-k * dist);
 
@@ -374,37 +373,26 @@ class RoomMode extends LabMode {
             
             let db = 20 * Math.log10(Math.sqrt(r ** 2 + i ** 2) + 1e-6);
             if (!isFinite(db)) db = -60;
-            data.push(db); // Return raw dB values, coordinates added in updateChart
+            data.push(db);
         }
         return data;
     }
 
     initChart() {
         const ctx = document.getElementById('rmFreqChart').getContext('2d');
-        
         const crossoverLinePlugin = {
             id: 'crossoverLine',
             afterDraw: (chart) => {
                 if(!this.visibility.sub && !this.visibility.mains) return; 
-
                 const ctx = chart.ctx;
                 const xAxis = chart.scales.x;
                 const yAxis = chart.scales.y;
-                // Linear scale handles values directly
                 const xVal = xAxis.getPixelForValue(this.settings.crossover);
-
                 if (xVal >= xAxis.left && xVal <= xAxis.right) {
                     ctx.save();
-                    ctx.beginPath();
-                    ctx.moveTo(xVal, yAxis.top);
-                    ctx.lineTo(xVal, yAxis.bottom);
-                    ctx.lineWidth = 1;
-                    ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)';
-                    ctx.setLineDash([4, 4]);
-                    ctx.stroke();
-                    ctx.fillStyle = 'rgba(147, 197, 253, 0.7)';
-                    ctx.textAlign = 'right';
-                    ctx.font = '10px sans-serif';
+                    ctx.beginPath(); ctx.moveTo(xVal, yAxis.top); ctx.lineTo(xVal, yAxis.bottom);
+                    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)'; ctx.setLineDash([4, 4]); ctx.stroke();
+                    ctx.fillStyle = 'rgba(147, 197, 253, 0.7)'; ctx.textAlign = 'right'; ctx.font = '10px sans-serif';
                     ctx.fillText(`XO ${this.settings.crossover}Hz`, xVal - 4, yAxis.top + 10);
                     ctx.restore();
                 }
@@ -415,96 +403,21 @@ class RoomMode extends LabMode {
             type: 'line',
             data: {
                 datasets: [
-                    // 0: Subwoofer
-                    {
-                        label: 'Subwoofer',
-                        data: [],
-                        borderColor: '#60a5fa',
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0.3,
-                        order: 2
-                    },
-                    // 1: Mains
-                    {
-                        label: 'Main Speakers',
-                        data: [],
-                        borderColor: '#fbbf24', 
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0.3,
-                        order: 3
-                    },
-                    // 2: Combined
-                    {
-                        label: 'Combined',
-                        data: [],
-                        borderColor: '#c084fc', 
-                        borderWidth: 3,
-                        pointRadius: 0,
-                        tension: 0.3,
-                        order: 1 
-                    },
-                    // 3: Target
-                    {
-                        label: 'Target',
-                        data: [],
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
-                        borderWidth: 2,
-                        borderDash: [6, 4],
-                        pointRadius: 0,
-                        order: 4
-                    },
-                    // 4: Target High
-                    {
-                        label: 'Target High',
-                        data: [],
-                        borderColor: 'transparent',
-                        borderWidth: 0,
-                        pointRadius: 0,
-                        fill: false,
-                        order: 5
-                    },
-                    // 5: Target Low
-                    {
-                        label: 'Target Band',
-                        data: [],
-                        borderColor: 'transparent',
-                        borderWidth: 0,
-                        pointRadius: 0,
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)', 
-                        fill: '-1', 
-                        order: 6
-                    },
-                    // 6: 0dB
-                    {
-                        label: '0dB',
-                        data: [],
-                        borderColor: 'rgba(255, 255, 255, 0.15)',
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        order: 10
-                    }
+                    { label: 'Subwoofer', data: [], borderColor: '#60a5fa', borderWidth: 2, pointRadius: 0, tension: 0.3, order: 2 },
+                    { label: 'Main Speakers', data: [], borderColor: '#fbbf24', borderWidth: 2, pointRadius: 0, tension: 0.3, order: 3 },
+                    { label: 'Combined', data: [], borderColor: '#c084fc', borderWidth: 3, pointRadius: 0, tension: 0.3, order: 1 },
+                    { label: 'Target', data: [], borderColor: 'rgba(255, 255, 255, 0.5)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, order: 4 },
+                    { label: 'Target High', data: [], borderColor: 'transparent', borderWidth: 0, pointRadius: 0, fill: false, order: 5 },
+                    { label: 'Target Band', data: [], borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: 'rgba(34, 197, 94, 0.1)', fill: '-1', order: 6 },
+                    { label: '0dB', data: [], borderColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, pointRadius: 0, order: 10 }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: { 
-                        type: 'linear', // Critical change for correct 20Hz alignment
-                        min: 20, 
-                        max: 150,
-                        ticks: { 
-                            stepSize: 20, 
-                            color: '#64748b'
-                        }, 
-                        grid: { color: '#1e293b' } 
-                    },
-                    y: { 
-                        grid: { color: '#1e293b' }, 
-                        ticks: { color: '#64748b' } 
-                    } 
+                    x: { type: 'linear', min: 20, max: 150, ticks: { stepSize: 20, color: '#64748b' }, grid: { color: '#1e293b' } },
+                    y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } } 
                 },
                 plugins: { legend: { display: false } }
             },
@@ -517,219 +430,135 @@ class RoomMode extends LabMode {
         const s = this.state.get();
         const modes = this.calculateModes(s.room.width, s.room.length, s.room.height);
         
-        // Helper
         const getSpeakerResponse = (speakerPos) => {
             if (!speakerPos) return Array(this.settings.maxFreq + 1).fill(-60);
-
-            // Calculate up to Max Freq
             let data = this.simulatePoint(modes, speakerPos, s.listener, s.room.width, s.room.length, s.room.height, this.settings.maxFreq);
-
             if (this.settings.couchMode) {
                 const offset = 0.5;
                 const lPos = { ...s.listener, x: Math.max(0.1, s.listener.x - offset) };
                 const rPos = { ...s.listener, x: Math.min(s.room.width - 0.1, s.listener.x + offset) };
                 const dataL = this.simulatePoint(modes, speakerPos, lPos, s.room.width, s.room.length, s.room.height, this.settings.maxFreq);
                 const dataR = this.simulatePoint(modes, speakerPos, rPos, s.room.width, s.room.length, s.room.height, this.settings.maxFreq);
-                
                 const averaged = [];
-                for(let i=0; i<data.length; i++) {
-                    averaged.push((data[i] + dataL[i] + dataR[i]) / 3);
-                }
+                for(let i=0; i<data.length; i++) averaged.push((data[i] + dataL[i] + dataR[i]) / 3);
                 data = averaged;
             }
             return data;
         };
 
-        // --- CALCULATE DATA ---
         const rawSubData = getSpeakerResponse(s.speakers.sub);
-
         const leftData = getSpeakerResponse(s.speakers.left);
         const rightData = getSpeakerResponse(s.speakers.right);
         const rawMainsData = [];
-        for (let i = 0; i < leftData.length; i++) {
-            rawMainsData.push((leftData[i] + rightData[i]) / 2);
-        }
+        for (let i = 0; i < leftData.length; i++) rawMainsData.push((leftData[i] + rightData[i]) / 2);
 
-        // Note: targetData returned from helper are already {x,y}
         const targetData = this.getTargetCurveData(this.settings.maxFreq + 1, this.settings.targetCurve);
 
-        // HELPER: Gain Match Offset Logic
         const getGainMatchOffset = (rawData, targetData, minHz, maxHz) => {
-            let sumDiff = 0;
-            let count = 0;
-            const startIdx = Math.max(0, minHz - 20); // index 0 is 20Hz
+            let sumDiff = 0; let count = 0;
+            const startIdx = Math.max(0, minHz - 20); 
             const endIdx = Math.min(rawData.length - 1, maxHz - 20);
-
             for (let i = startIdx; i <= endIdx; i++) {
                 if (i < rawData.length && isFinite(rawData[i])) {
-                    // diff = measure - target
                     const diff = rawData[i] - targetData[i].y;
-                    sumDiff += diff;
-                    count++;
+                    sumDiff += diff; count++;
                 }
             }
             return count > 0 ? sumDiff / count : 0;
         };
 
-        // 1. Calculate Offsets (Gain Matching)
-        // Sub: Match within passband (20Hz to Crossover)
         const offsetSub = getGainMatchOffset(rawSubData, targetData, 20, this.settings.crossover);
-        
-        // Mains: Match within passband (Crossover to Max View)
         const offsetMains = getGainMatchOffset(rawMainsData, targetData, this.settings.crossover, this.settings.maxFreq);
         
-        // Final Arrays (Coordinates)
-        const finalSub = [];
-        const finalMains = [];
-        const finalCombined = [];
-        
-        const targetHigh = [];
-        const targetLow = [];
-        const zeroLine = [];
+        const finalSub = []; const finalMains = []; const finalCombined = [];
+        const targetHigh = []; const targetLow = []; const zeroLine = [];
 
-        // Scale helpers
-        let minVal = Infinity;
-        let maxVal = -Infinity;
-        
-        // Threshold for hiding line
-        const CULL_THRESHOLD = -35; 
-        const XO_MARGIN = 10; 
-
-        // Filter Constants for LR4
+        let minVal = Infinity; let maxVal = -Infinity;
+        const CULL_THRESHOLD = -35; const XO_MARGIN = 10; 
         const fc = this.settings.crossover;
 
         for(let i=0; i<rawSubData.length; i++) {
             const freq = 20 + i;
             if (freq > this.settings.maxFreq) break; 
             
-            // --- LINKWITZ-RILEY 4th Order Implementation ---
-            // Magnitude Response Calculations (Proper summing to flat)
             const ratio = freq / fc;
-            
-            // LP Magnitude (Squared for power sum, then back to dB... actually we work in dB)
-            // Linear Magnitude Transfer Function for LR4 Low Pass: 1 / (1 + ratio^4)
-            // Convert to dB attenuation: 20 * log10(Mag)
             const lpGainLin = 1 / (1 + Math.pow(ratio, 4));
             const lpAttenDB = 20 * Math.log10(lpGainLin);
-
-            // HP Magnitude Transfer Function for LR4 High Pass: ratio^4 / (1 + ratio^4)
             const hpGainLin = Math.pow(ratio, 4) / (1 + Math.pow(ratio, 4));
-            // Prevent log10(0) at 0Hz
             const hpAttenDB = (freq === 0) ? -60 : 20 * Math.log10(hpGainLin);
 
-
-            // 1. Process Sub
             let valSub = rawSubData[i] - offsetSub + lpAttenDB;
             if (valSub < CULL_THRESHOLD) valSub = null;
             if (valSub !== null) finalSub.push({ x: freq, y: valSub });
 
-            // 2. Process Mains
             let valMains = rawMainsData[i] - offsetMains + hpAttenDB;
             if (valMains < CULL_THRESHOLD) valMains = null;
             if (valMains !== null) finalMains.push({ x: freq, y: valMains });
 
-            // 3. Process Combined
-            // Summation assumes phase alignment (magnitude sum)
             let valComb = null;
             const subLin = (valSub !== null) ? Math.pow(10, valSub / 20) : 0;
             const mainLin = (valMains !== null) ? Math.pow(10, valMains / 20) : 0;
             
-            if (subLin > 0 || mainLin > 0) {
-                 valComb = 20 * Math.log10(subLin + mainLin);
-            }
+            if (subLin > 0 || mainLin > 0) valComb = 20 * Math.log10(subLin + mainLin);
             if (valComb !== null && valComb < CULL_THRESHOLD) valComb = null;
             if (valComb !== null) finalCombined.push({ x: freq, y: valComb });
 
-            // 4. SMART SCALING LOGIC
             if (this.visibility.sub && valSub !== null) {
                 if (freq <= (this.settings.crossover + XO_MARGIN)) {
-                    if (valSub < minVal) minVal = valSub;
-                    if (valSub > maxVal) maxVal = valSub;
+                    if (valSub < minVal) minVal = valSub; if (valSub > maxVal) maxVal = valSub;
                 }
             }
-
             if (this.visibility.mains && valMains !== null) {
                 if (freq >= (this.settings.crossover - XO_MARGIN)) {
-                    if (valMains < minVal) minVal = valMains;
-                    if (valMains > maxVal) maxVal = valMains;
+                    if (valMains < minVal) minVal = valMains; if (valMains > maxVal) maxVal = valMains;
                 }
             }
-
             if (this.visibility.combined && valComb !== null) {
                  if (freq <= (this.settings.crossover + XO_MARGIN) || freq >= (this.settings.crossover - XO_MARGIN)) {
-                    if (valComb < minVal) minVal = valComb;
-                    if (valComb > maxVal) maxVal = valComb;
+                    if (valComb < minVal) minVal = valComb; if (valComb > maxVal) maxVal = valComb;
                  }
             }
 
             const tVal = targetData[i].y;
-            const tLow = tVal - 3;
-            const tHigh = tVal + 3;
-
+            const tLow = tVal - 3; const tHigh = tVal + 3;
             if (minVal !== Infinity) {
                  if (tLow < minVal && tLow > (minVal - 10)) minVal = tLow;
                  if (tHigh > maxVal && tHigh < (maxVal + 10)) maxVal = tHigh;
-            } else {
-                 minVal = -10; maxVal = 10;
-            }
+            } else { minVal = -10; maxVal = 10; }
 
             targetHigh.push({ x: freq, y: tVal + 3 });
             targetLow.push({ x: freq, y: tVal - 3 });
             zeroLine.push({ x: freq, y: 0 });
         }
 
-        // Apply Smart Y-Scaling
         if (minVal !== Infinity && maxVal !== -Infinity) {
-            const lower = minVal - 2; 
-            const upper = maxVal + 2;
+            const lower = minVal - 2; const upper = maxVal + 2;
             this.chart.options.scales.y.min = Math.floor(lower);
             this.chart.options.scales.y.max = Math.ceil(upper);
         } else {
-            this.chart.options.scales.y.min = -15;
-            this.chart.options.scales.y.max = 15;
+            this.chart.options.scales.y.min = -15; this.chart.options.scales.y.max = 15;
         }
         
         this.chart.options.scales.x.max = this.settings.maxFreq;
-
         const ds = this.chart.data.datasets;
-        
-        ds[0].hidden = !this.visibility.sub;
-        ds[0].data = finalSub;
-        
-        ds[1].hidden = !this.visibility.mains;
-        ds[1].data = finalMains;
-        
-        ds[2].hidden = !this.visibility.combined;
-        ds[2].data = finalCombined;
-        
-        ds[3].hidden = !this.visibility.target;
-        ds[3].data = targetData.slice(0, finalSub.length); 
-        
-        ds[4].hidden = !this.visibility.target;
-        ds[4].data = targetHigh;
-        
-        ds[5].hidden = !this.visibility.target;
-        ds[5].data = targetLow;
-        
+        ds[0].hidden = !this.visibility.sub; ds[0].data = finalSub;
+        ds[1].hidden = !this.visibility.mains; ds[1].data = finalMains;
+        ds[2].hidden = !this.visibility.combined; ds[2].data = finalCombined;
+        ds[3].hidden = !this.visibility.target; ds[3].data = targetData.slice(0, finalSub.length); 
+        ds[4].hidden = !this.visibility.target; ds[4].data = targetHigh;
+        ds[5].hidden = !this.visibility.target; ds[5].data = targetLow;
         ds[6].data = zeroLine;
-        
         this.chart.update('none');
     }
 
     generateHeatmap(btn) {
         const s = this.state.get();
         const modes = this.calculateModes(s.room.width, s.room.length, s.room.height);
-        
-        const rows = this.heatmap.rows; 
-        const cols = this.heatmap.cols;
-        const sx = s.room.width / cols; 
-        const sy = s.room.length / rows;
+        const rows = this.heatmap.rows; const cols = this.heatmap.cols;
+        const sx = s.room.width / cols; const sy = s.room.length / rows;
         this.heatmap.data = [];
         let minScore = Infinity; let maxScore = -Infinity;
 
-        // Note: For heatmap calculation we use the raw array data internally
-        // We need to strip the {x,y} structure from targetData here or reuse logic
-        // Re-implementing simplified target fetch for heatmap to avoid breaking changes
         const getRawTarget = (len, boost) => {
              const d = [];
              for(let i=0; i<len; i++) {
@@ -738,24 +567,20 @@ class RoomMode extends LabMode {
                  if (boost > 0) {
                     if (f <= 45) val = boost;
                     else if (f < 150) {
-                        const r = (f - 45) / (150 - 45);
-                        val = boost * (1 - (1 - Math.cos(r * Math.PI)) / 2);
+                        const r = (f - 45) / (150 - 45); val = boost * (1 - (1 - Math.cos(r * Math.PI)) / 2);
                     }
                  }
                  d.push(val);
              }
              return d;
         };
-
         const targetData = getRawTarget(181, this.settings.targetCurve);
         const limit = Math.min(this.settings.crossover - 20, 180); 
 
         for(let y=0; y<rows; y++) {
             for(let x=0; x<cols; x++) {
-                const cx = x*sx + sx/2;
-                const cy = y*sy + sy/2;
+                const cx = x*sx + sx/2; const cy = y*sy + sy/2;
                 const tempSub = { x: cx, y: cy, z: s.speakers.sub.z };
-                
                 let resp = this.simulatePoint(modes, tempSub, s.listener, s.room.width, s.room.length, s.room.height);
                 
                 if (this.settings.couchMode) {
@@ -764,9 +589,7 @@ class RoomMode extends LabMode {
                     const rPos = { ...s.listener, x: Math.min(s.room.width - 0.1, s.listener.x + offset) };
                     const respL = this.simulatePoint(modes, tempSub, lPos, s.room.width, s.room.length, s.room.height);
                     const respR = this.simulatePoint(modes, tempSub, rPos, s.room.width, s.room.length, s.room.height);
-                    for(let i=0; i<resp.length; i++) {
-                        resp[i] = (resp[i] + respL[i] + respR[i]) / 3;
-                    }
+                    for(let i=0; i<resp.length; i++) resp[i] = (resp[i] + respL[i] + respR[i]) / 3;
                 }
 
                 let sumHigh = 0; let countHigh = 0;
@@ -774,94 +597,66 @@ class RoomMode extends LabMode {
                     if(i < resp.length && isFinite(resp[i])) { sumHigh += resp[i]; countHigh++; }
                 }
                 const off = (countHigh > 0) ? sumHigh / countHigh : 0;
-
-                let err = 0;
-                let mv = Infinity;
+                let err = 0; let mv = Infinity;
 
                 for(let i=0; i<=limit; i++) {
-                    const v = resp[i] - off; 
-                    const diff = v - targetData[i]; 
-
-                    if (diff < 0) err += (diff * diff) * 2.0; 
-                    else err += (diff * diff) * 0.5; 
-
+                    const v = resp[i] - off; const diff = v - targetData[i]; 
+                    if (diff < 0) err += (diff * diff) * 2.0; else err += (diff * diff) * 0.5; 
                     if (v < mv) mv = v;
                 }
-                
                 const weightedRMSE = Math.sqrt(err / (limit + 1));
                 const deepNullPenalty = Math.max(0, -mv - 10) * 0.5;
                 const score = 1000 / (weightedRMSE + deepNullPenalty + 0.1);
-
-                if (score < minScore) minScore = score;
-                if (score > maxScore) maxScore = score;
-                
+                if (score < minScore) minScore = score; if (score > maxScore) maxScore = score;
                 this.heatmap.data.push({ x: cx, y: cy, w: sx, h: sy, raw: score });
             }
         }
         
         const range = maxScore - minScore;
         this.heatmap.data.forEach(d => {
-            if (range === 0) d.val = 0;
-            else d.val = (d.raw - minScore) / range;
+            if (range === 0) d.val = 0; else d.val = (d.raw - minScore) / range;
         });
         
         this.heatmap.active = true;
         document.getElementById('rmLegend').classList.remove('hidden');
-        btn.innerText = "REFRESH HEATMAP";
-        btn.disabled = false;
+        btn.innerText = "REFRESH HEATMAP"; btn.disabled = false;
         this.renderer.resize(); 
     }
 }
 
 
 // ============================================================================
-// 2. SPEAKER MODE (Final Fix: Aspect Ratio Cones & Forced Unlinking)
+// 2. SPEAKER MODE (Updated Mirroring)
 // ============================================================================
 class SpeakerMode extends LabMode {
     constructor(s, r) {
         super(s, r);
         this.chart = null;
-        
-        this.heatmap = {
-            active: false, data: [], cols: 30, rows: 30, generating: false
-        };
-
-        this.settings = {
-            smoothing: false, 
-            minHz: 20,
-            maxHz: 20000
-        };
-
+        this.heatmap = { active: false, data: [], cols: 30, rows: 30, generating: false };
+        this.settings = { smoothing: false, minHz: 20, maxHz: 20000 };
         this.C = 343;
-        
-        this.physParams = {
-            wooferSize: 6.5, tweeterSize: 1.0, crossover: 2500, baffleWidth: 30
-        };
+        this.physParams = { wooferSize: 6.5, tweeterSize: 1.0, crossover: 2500, baffleWidth: 30 };
     }
 
     onEnter() {
         this.active = true;
-        // Vi kjører en sync umiddelbart ved bytte av tab
+        this.renderer.mirrorOverride = null; // Bruk global state
         this.syncMirrorSettings();
     }
 
-    // Hjelpefunksjon for å tvinge renderer til å lystre checkboxen
+    // Helper to initialize checkboxes correctly
     syncMirrorSettings() {
         const check = document.getElementById('spCheckMirror');
         const mode = document.getElementById('spSelectMirrorMode');
-        
-        if (this.renderer && check) {
-            this.renderer.mirrorSettings = {
-                enabled: check.checked,
-                mode: mode ? mode.value : 'room'
-            };
-        }
+        // Trenger ikke sette renderer manuelt her lenger, da renderer leser global state
     }
 
     getSidebarHTML() {
         const s = this.state.get();
         const adv = s.advanced || {};
         const z = s.speakers.left.z || 1.0;
+        const mirrorEnabled = s.mirror.enabled;
+        const mirrorMode = s.mirror.mode;
 
         return `
             <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mb-4">
@@ -900,14 +695,14 @@ class SpeakerMode extends LabMode {
 
                 <div class="flex items-center justify-between mb-2 border-t border-green-900/30 pt-2">
                     <label class="text-xs text-slate-300">Link Speakers</label>
-                    <input type="checkbox" id="spCheckMirror" class="accent-green-500" checked>
+                    <input type="checkbox" id="spCheckMirror" class="accent-green-500" ${mirrorEnabled ? 'checked' : ''}>
                 </div>
                 
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] text-slate-400">Mirror Around</label>
                     <select id="spSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-24 bg-slate-900 border border-slate-700 text-white">
-                        <option value="room">Room Center</option>
-                        <option value="listener">Listener</option>
+                        <option value="room" ${mirrorMode === 'room' ? 'selected' : ''}>Room Center</option>
+                        <option value="listener" ${mirrorMode === 'listener' ? 'selected' : ''}>Listener</option>
                     </select>
                 </div>
             </div>
@@ -954,7 +749,6 @@ class SpeakerMode extends LabMode {
             this.state.update({ advanced: { ...curr, [key]: val } });
         };
 
-        // 1. Toe-In
         const rngToe = document.getElementById('spInputToe');
         const dispToe = document.getElementById('spDispToe');
         if(rngToe) {
@@ -967,20 +761,27 @@ class SpeakerMode extends LabMode {
             });
         }
 
-        // 2. Mirroring (Link) - Events
+        // Mirroring (Link) - GLOBAL STATE UPDATE
         const checkMirror = document.getElementById('spCheckMirror');
         const selMirror = document.getElementById('spSelectMirrorMode');
         
-        if(checkMirror) checkMirror.addEventListener('change', () => this.syncMirrorSettings());
-        if(selMirror) selMirror.addEventListener('change', () => this.syncMirrorSettings());
+        const updateMirror = () => {
+            this.state.update({ 
+                mirror: { 
+                    enabled: checkMirror.checked, 
+                    mode: selMirror.value 
+                } 
+            });
+        };
+        if(checkMirror) checkMirror.addEventListener('change', updateMirror);
+        if(selMirror) selMirror.addEventListener('change', updateMirror);
 
-        // 3. Height (Z)
+        // Height (Z)
         const inputZ = document.getElementById('spInputZ');
         if(inputZ) {
             inputZ.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
                 const s = this.state.get();
-                // Oppdater begge speakers
                 this.state.update({ 
                     speakers: {
                         ...s.speakers,
@@ -991,7 +792,6 @@ class SpeakerMode extends LabMode {
             });
         }
 
-        // 4. Graph
         const checkSmooth = document.getElementById('spCheckSmooth');
         if(checkSmooth) {
             checkSmooth.addEventListener('change', (e) => {
@@ -1017,7 +817,6 @@ class SpeakerMode extends LabMode {
         if(inMin) inMin.addEventListener('change', updateRange);
         if(inMax) inMax.addEventListener('change', updateRange);
 
-        // 5. Heatmap
         const btnHeat = document.getElementById('spBtnHeatmap');
         if(btnHeat) {
             btnHeat.addEventListener('click', () => {
@@ -1032,22 +831,16 @@ class SpeakerMode extends LabMode {
             this.updateChart();
         });
 
-        // Initialize state
-        this.syncMirrorSettings(); // Sørg for at den er satt riktig ved start
         this.initChart();
         this.updateStats();
         this.updateChart();
     }
 
     draw(ctx) {
-        // --- 1. FORCE SYNC (The "Nuclear" Option for Unlinking) ---
-        // Siden draw() kjører 60fps, sikrer dette at renderer ALDRI glemmer innstillingen.
-        this.syncMirrorSettings();
-
         const s = this.state.get();
         const adv = s.advanced || { toeInAngle: 10 };
 
-        // 2. Heatmap Background
+        // Heatmap Background
         if (this.heatmap.active && this.heatmap.data.length > 0) {
             this.heatmap.data.forEach(cell => {
                 const px = this.renderer.toPx(cell.x - cell.w/2, 'x');
@@ -1060,24 +853,19 @@ class SpeakerMode extends LabMode {
             });
         }
 
-        // 3. Draw Cones (ASPECT RATIO FIXED)
+        // Draw Cones
         const drawCone = (spk, label) => {
             const px = this.renderer.toPx(spk.x, 'x');
             const py = this.renderer.toPx(spk.y, 'y');
             const toeRad = (adv.toeInAngle || 10) * (Math.PI/180);
             
-            // Beregn skala-faktor (Pixels per Meter) for X og Y
-            // Vi bruker toPx(1) - toPx(0) for å finne hvor mange piksler 1 meter er.
             const scaleX = this.renderer.toPx(1, 'x') - this.renderer.toPx(0, 'x');
             const scaleY = this.renderer.toPx(1, 'y') - this.renderer.toPx(0, 'y');
 
-            // Fysisk vinkel i rommet (0 = Høyre, PI/2 = Ned)
             let physAngle = Math.PI / 2; // Base nedover
             if (label === 'left') physAngle -= toeRad; 
             else physAngle += toeRad;
 
-            // Konverter fysisk vinkel til visuell vinkel på lerretet
-            // Vi bruker komponentene (cos, sin) ganget med skala-faktorene
             const dx = Math.cos(physAngle) * scaleX;
             const dy = Math.sin(physAngle) * scaleY;
             const visualAngle = Math.atan2(dy, dx);
@@ -1086,22 +874,9 @@ class SpeakerMode extends LabMode {
             ctx.translate(px, py);
             ctx.rotate(visualAngle); 
             
-            // Tegn kjegle mot HØYRE (0 grader visuelt)
             ctx.fillStyle = 'rgba(234, 179, 8, 0.15)'; 
-            ctx.beginPath(); 
-            ctx.moveTo(0, 0); 
-            ctx.lineTo(400, -40); 
-            ctx.lineTo(400, 40); 
-            ctx.fill();
-            
-            ctx.strokeStyle = 'rgba(250, 204, 21, 0.6)'; 
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5,5]); 
-            ctx.beginPath(); 
-            ctx.moveTo(0, 0); 
-            ctx.lineTo(400, 0); 
-            ctx.stroke();
-            
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(400, -40); ctx.lineTo(400, 40); ctx.fill();
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.6)'; ctx.lineWidth = 1; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(400, 0); ctx.stroke();
             ctx.restore();
         };
 
@@ -1109,6 +884,7 @@ class SpeakerMode extends LabMode {
         if(s.speakers.right) drawCone(s.speakers.right, 'right');
     }
 
+    // ... (rest of SpeakerMode physics unchanged) ...
     updateStats() {
         const s = this.state.get();
         const dx = s.speakers.left.x - s.speakers.right.x;
@@ -1136,7 +912,6 @@ class SpeakerMode extends LabMode {
         const s = this.state.get();
         const adv = s.advanced || {};
         const params = this.physParams;
-        
         const woofRad = (params.wooferSize * 0.0254) / 2;
         const tweetRad = (params.tweeterSize * 0.0254) / 2;
         const xover = params.crossover;
@@ -1148,7 +923,6 @@ class SpeakerMode extends LabMode {
 
         const dHoriz = Math.hypot(sx - lx, sy - ly);
         const dDirect = Math.sqrt(dHoriz**2 + (sz - lz)**2);
-        
         const dFloor = Math.sqrt(dHoriz**2 + (sz + lz)**2);
         const dCeil = Math.sqrt(dHoriz**2 + (2*H - sz - lz)**2);
         
@@ -1164,9 +938,7 @@ class SpeakerMode extends LabMode {
 
         let spkAimAngle = Math.PI/2; 
         const toeRad = (adv.toeInAngle || 10) * (Math.PI/180);
-        
-        if (isLeftSpeaker) spkAimAngle -= toeRad; 
-        else spkAimAngle += toeRad;
+        if (isLeftSpeaker) spkAimAngle -= toeRad; else spkAimAngle += toeRad;
         
         const getOffAxisDeg = (targetX, targetY) => {
             const angleToTarget = Math.atan2(targetY - sy, targetX - sx);
@@ -1174,7 +946,6 @@ class SpeakerMode extends LabMode {
             if(diff > Math.PI) diff = Math.abs(diff - 2*Math.PI);
             return diff * (180/Math.PI);
         };
-
         const degOffAxis = getOffAxisDeg(lx, ly);
         const degLeftWall = getOffAxisDeg(-lx, ly);
         const degRightWall = getOffAxisDeg(2*W - lx, ly);
@@ -1205,7 +976,6 @@ class SpeakerMode extends LabMode {
             addPath(dLeftWall, reflectionCoeff, degLeftWall); 
             addPath(dRightWall, reflectionCoeff, degRightWall);
             addPath(dBack, reflectionCoeff, degOffAxis);   
-
             data.push({ f, r, i });
         }
         return data;
@@ -1258,7 +1028,7 @@ class SpeakerMode extends LabMode {
         const rawL = this.calculateComplexResponse(s.speakers.left, true);
         const rawR = this.calculateComplexResponse(s.speakers.right, false);
 
-        const NORM = 14; // Room Gain Compensation
+        const NORM = 14; 
         const toDB = (c) => 20 * Math.log10(Math.sqrt(c.r**2 + c.i**2) + 1e-9) - NORM;
 
         const dataL = rawL.map(p => ({ x: p.f, y: toDB(p) }));
@@ -1275,7 +1045,6 @@ class SpeakerMode extends LabMode {
         this.chart.data.datasets[0].data = this.applySmoothing(dataL, this.settings.smoothing);
         this.chart.data.datasets[1].data = this.applySmoothing(dataR, this.settings.smoothing);
         this.chart.data.datasets[2].data = this.applySmoothing(dataComb, this.settings.smoothing);
-        
         this.chart.update('none');
     }
 
@@ -1284,7 +1053,6 @@ class SpeakerMode extends LabMode {
         const W = s.room.width; const L = s.room.length;
         const rows = this.heatmap.rows; const cols = this.heatmap.cols;
         const sx = W / cols; const sy = L / rows;
-        
         this.heatmap.data = [];
         let min = Infinity; let max = -Infinity;
         const checkFreqs = [40, 60, 80, 100, 150]; 
@@ -1292,17 +1060,13 @@ class SpeakerMode extends LabMode {
         for(let y=0; y<rows; y++) {
             for(let x=0; x<cols; x++) {
                 const cx = x*sx + sx/2; const cy = y*sy + sy/2;
-                
-                // Geo score
                 const spread = Math.abs((W - cx) - cx);
                 const distToLis = Math.hypot(cx - s.listener.x, cy - s.listener.y);
                 const angle = (2 * Math.asin(spread / (2 * distToLis))) * (180 / Math.PI);
                 let geomScore = !isNaN(angle) ? Math.max(0, 1 - (Math.abs(60-angle)/30)) : 0;
-
-                // Physics score
+                
                 const dDir = Math.hypot(cx - s.listener.x, cy - s.listener.y);
                 const dFront = Math.hypot(cx - s.listener.x, -cy - s.listener.y);
-                
                 let dSide;
                 if (cx < W/2) dSide = Math.hypot(-cx - s.listener.x, cy - s.listener.y); 
                 else dSide = Math.hypot((2*W - cx) - s.listener.x, cy - s.listener.y); 
@@ -1316,25 +1080,22 @@ class SpeakerMode extends LabMode {
                 
                 const physScore = Math.max(0, 1 - (err / 60)); 
                 const total = geomScore * 0.4 + physScore * 0.6;
-                
                 if (total < min) min = total; if (total > max) max = total;
                 this.heatmap.data.push({ x: cx, y: cy, w: sx, h: sy, raw: total });
             }
         }
-        
         const range = max - min;
         this.heatmap.data.forEach(d => d.norm = range === 0 ? 0 : (d.raw - min) / range);
         
         this.heatmap.active = true;
         document.getElementById('spLegend').classList.remove('hidden');
-        btn.innerText = "REFRESH OPTIMIZATION";
-        btn.disabled = false;
+        btn.innerText = "REFRESH OPTIMIZATION"; btn.disabled = false;
         this.renderer.resize();
     }
 }
 
 // ============================================================================
-// 3. REFLECTION MODE (Fixed Mirroring & Measurements)
+// 3. REFLECTION MODE (Updated Mirroring)
 // ============================================================================
 class ReflectionMode extends LabMode {
     constructor(s, r) {
@@ -1342,7 +1103,16 @@ class ReflectionMode extends LabMode {
         this.walls = { side: true, front: false, back: false };
     }
 
+    onEnter() {
+        this.active = true;
+        this.renderer.mirrorOverride = null; // Bruk global state
+    }
+
     getSidebarHTML() {
+        const s = this.state.get();
+        const mirrorEnabled = s.mirror.enabled;
+        const mirrorMode = s.mirror.mode;
+
         return `
             <div class="control-card p-4 rounded-xl bg-orange-950/20 border border-orange-900/30 space-y-3">
                 <h3 class="text-xs font-bold text-orange-400 mb-2 uppercase">First Reflections</h3>
@@ -1367,13 +1137,13 @@ class ReflectionMode extends LabMode {
                 <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Layout & Mirroring</h3>
                 <div class="flex items-center justify-between mb-2">
                     <label class="text-xs text-slate-300">Link Speakers</label>
-                    <input type="checkbox" id="rfCheckMirror" class="accent-blue-500" checked>
+                    <input type="checkbox" id="rfCheckMirror" class="accent-blue-500" ${mirrorEnabled ? 'checked' : ''}>
                 </div>
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] text-slate-400">Mirror Around</label>
                     <select id="rfSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-28 bg-slate-900 border border-slate-700 text-white">
-                        <option value="room">Room Center</option>
-                        <option value="listener">Listener</option>
+                        <option value="room" ${mirrorMode === 'room' ? 'selected' : ''}>Room Center</option>
+                        <option value="listener" ${mirrorMode === 'listener' ? 'selected' : ''}>Listener</option>
                     </select>
                 </div>
             </div>
@@ -1410,7 +1180,6 @@ class ReflectionMode extends LabMode {
     }
 
     bindEvents() {
-        // Wall toggles
         ['Side', 'Front', 'Back'].forEach(w => {
             const el = document.getElementById(`rfCheck${w}`);
             if(el) el.addEventListener('change', (e) => {
@@ -1420,74 +1189,51 @@ class ReflectionMode extends LabMode {
             });
         });
         
-        // Setup initial mirror state
-        this.syncMirrorState();
-        
-        // Listeners for mirror changes
+        // Mirroring (Link) - GLOBAL STATE UPDATE
         const checkMirror = document.getElementById('rfCheckMirror');
         const selMirror = document.getElementById('rfSelectMirrorMode');
         
-        if(checkMirror) checkMirror.addEventListener('change', () => this.syncMirrorState());
-        if(selMirror) selMirror.addEventListener('change', () => this.syncMirrorState());
+        const updateMirror = () => {
+            this.state.update({ 
+                mirror: { 
+                    enabled: checkMirror.checked, 
+                    mode: selMirror.value 
+                } 
+            });
+        };
+        if(checkMirror) checkMirror.addEventListener('change', updateMirror);
+        if(selMirror) selMirror.addEventListener('change', updateMirror);
         
         window.addEventListener('app-state-updated', () => this.updateTable());
         this.updateTable();
     }
 
-    syncMirrorState() {
-        const checkMirror = document.getElementById('rfCheckMirror');
-        const selMirror = document.getElementById('rfSelectMirrorMode');
-        if (this.renderer && checkMirror) {
-            this.renderer.mirrorSettings = { 
-                enabled: checkMirror.checked, 
-                mode: selMirror ? selMirror.value : 'room' 
-            };
-        }
-    }
-
     draw(ctx) {
-        // Force sync mirror settings every frame (Fixes issue where state gets lost)
-        this.syncMirrorState();
-
         const s = this.state.get();
         const lx = s.listener.x; const ly = s.listener.y;
         const W = s.room.width; const L = s.room.length;
 
-        // Ny og forbedret funksjon for å tegne dimensjonslinjer
         const drawDimensionLine = (startX, startY, endX, endY, val, layer = 0, isVertical) => {
             const pxStart = this.renderer.toPx(startX, 'x');
             const pyStart = this.renderer.toPx(startY, 'y');
             const pxEnd = this.renderer.toPx(endX, 'x');
             const pyEnd = this.renderer.toPx(endY, 'y');
             
-            // Beregn offset (skyv linjen ut i rommet)
-            // Vi sjekker om vi er på venstre/høyre eller topp/bunn for å vite retning
-            let offX = 0; 
-            let offY = 0;
-            const dist = 25 + (layer * 30); // Base offset 25px, øker med layer
+            let offX = 0; let offY = 0;
+            const dist = 25 + (layer * 30); 
 
             if (isVertical) {
-                // Sidevegg: Skyv mot midten av rommet
-                const direction = startX < W/2 ? 1 : -1; 
-                offX = dist * direction;
+                const direction = startX < W/2 ? 1 : -1; offX = dist * direction;
             } else {
-                // Front/Bakvegg: Skyv mot midten av rommet
-                const direction = startY < L/2 ? 1 : -1;
-                offY = dist * direction;
+                const direction = startY < L/2 ? 1 : -1; offY = dist * direction;
             }
 
             const p1x = pxStart + offX; const p1y = pyStart + offY;
             const p2x = pxEnd + offX;   const p2y = pyEnd + offY;
 
             ctx.save();
-            ctx.strokeStyle = '#475569'; // Målelinje farge
-            ctx.lineWidth = 1;
-            ctx.setLineDash([]); // Alltid heltrukken for selve målet
-            
-            // Tegn selve linjen
+            ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([]);
             ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.stroke();
-            
-            // Tegn små "ticks" i endene
             const tickSz = 4;
             if(isVertical) {
                  ctx.beginPath(); ctx.moveTo(p1x-tickSz, p1y); ctx.lineTo(p1x+tickSz, p1y); ctx.stroke();
@@ -1496,54 +1242,35 @@ class ReflectionMode extends LabMode {
                  ctx.beginPath(); ctx.moveTo(p1x, p1y-tickSz); ctx.lineTo(p1x, p1y+tickSz); ctx.stroke();
                  ctx.beginPath(); ctx.moveTo(p2x, p2y-tickSz); ctx.lineTo(p2x, p2y+tickSz); ctx.stroke();
             }
-
-            // Tegn stiplet hjelpelinje fra vegg til målestrek (valgfritt, for klarhet)
-            ctx.strokeStyle = 'rgba(71, 85, 105, 0.3)';
-            ctx.setLineDash([2, 2]);
+            ctx.strokeStyle = 'rgba(71, 85, 105, 0.3)'; ctx.setLineDash([2, 2]);
             ctx.beginPath(); ctx.moveTo(pxEnd, pyEnd); ctx.lineTo(p2x, p2y); ctx.stroke();
 
-            // Tegn tekst
-            const txt = val.toFixed(2) + 'm';
-            const met = ctx.measureText(txt);
-            const mx = (p1x + p2x) / 2;
-            const my = (p1y + p2y) / 2;
-
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(mx - met.width/2 - 2, my - 6, met.width + 4, 12);
-            
-            ctx.fillStyle = layer > 0 ? '#fb923c' : '#fdba74'; 
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            const txt = val.toFixed(2) + 'm'; const met = ctx.measureText(txt);
+            const mx = (p1x + p2x) / 2; const my = (p1y + p2y) / 2;
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(mx - met.width/2 - 2, my - 6, met.width + 4, 12);
+            ctx.fillStyle = layer > 0 ? '#fb923c' : '#fdba74'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(txt, mx, my);
-
             ctx.restore();
         };
 
         const processReflection = (spk, wall, isSecondary = false) => {
-            let refX, refY, mirX, mirY;
-            const sx = spk.x; const sy = spk.y;
-
+            let refX, refY, mirX, mirY; const sx = spk.x; const sy = spk.y;
             if (wall === 'left') {
                 mirX = -sx; mirY = sy;
                 const m = (ly - mirY) / (lx - mirX);
-                refY = mirY + m * (0 - mirX);
-                refX = 0;
+                refY = mirY + m * (0 - mirX); refX = 0;
             } else if (wall === 'right') {
                 mirX = W + (W - sx); mirY = sy;
                 const m = (ly - mirY) / (lx - mirX);
-                refY = mirY + m * (W - mirX);
-                refX = W;
+                refY = mirY + m * (W - mirX); refX = W;
             } else if (wall === 'front') {
                 mirX = sx; mirY = -sy;
                 const m = (ly - mirY) / (lx - mirX);
-                refX = (0 - mirY)/m + mirX;
-                refY = 0;
+                refX = (0 - mirY)/m + mirX; refY = 0;
             } else if (wall === 'back') {
                 mirX = sx; mirY = L + (L - sy);
                 const m = (ly - mirY) / (lx - mirX);
-                refX = (L - mirY)/m + mirX;
-                refY = L;
+                refX = (L - mirY)/m + mirX; refY = L;
             }
 
             if ((wall === 'left' || wall === 'right') && (refY < 0 || refY > L)) return;
@@ -1554,44 +1281,23 @@ class ReflectionMode extends LabMode {
             const pxL = this.renderer.toPx(lx, 'x'); const pyL = this.renderer.toPx(ly, 'y');
 
             ctx.save();
-            
-            // STYLE: Stiplet for sekundær, Heltrukken for primær
-            if (isSecondary) {
-                ctx.strokeStyle = 'rgba(249, 115, 22, 0.4)'; 
-                ctx.setLineDash([4, 4]); 
-            } else {
-                ctx.strokeStyle = 'rgba(249, 115, 22, 0.7)'; 
-                ctx.setLineDash([]); 
-            }
+            if (isSecondary) { ctx.strokeStyle = 'rgba(249, 115, 22, 0.4)'; ctx.setLineDash([4, 4]); } 
+            else { ctx.strokeStyle = 'rgba(249, 115, 22, 0.7)'; ctx.setLineDash([]); }
             ctx.lineWidth = 1;
-            
             ctx.beginPath(); ctx.moveTo(pxS, pyS); ctx.lineTo(pxR, pyR); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(pxR, pyR); ctx.lineTo(pxL, pyL); ctx.stroke();
-            
             ctx.fillStyle = isSecondary ? '#fb923c' : '#f97316';
             ctx.beginPath(); ctx.arc(pxR, pyR, isSecondary ? 3 : 4, 0, Math.PI*2); ctx.fill();
 
-            // Målinger - Tegn linje fra hjørnet til punktet
             const layer = isSecondary ? 1 : 0;
-            
             if (wall === 'left' || wall === 'right') {
-                const distFront = refY;
-                const distBack = L - refY;
-                // Mål avstand fra nærmeste kortvegg
-                if (distFront < distBack) {
-                    drawDimensionLine(refX, 0, refX, refY, refY, layer, true);
-                } else {
-                    drawDimensionLine(refX, L, refX, refY, L-refY, layer, true);
-                }
+                const distFront = refY; const distBack = L - refY;
+                if (distFront < distBack) drawDimensionLine(refX, 0, refX, refY, refY, layer, true);
+                else drawDimensionLine(refX, L, refX, refY, L-refY, layer, true);
             } else {
-                // Mål avstand fra nærmeste langvegg
-                const distLeft = refX;
-                const distRight = W - refX;
-                if (distLeft < distRight) {
-                    drawDimensionLine(0, refY, refX, refY, refX, layer, false);
-                } else {
-                    drawDimensionLine(W, refY, refX, refY, W-refX, layer, false);
-                }
+                const distLeft = refX; const distRight = W - refX;
+                if (distLeft < distRight) drawDimensionLine(0, refY, refX, refY, refX, layer, false);
+                else drawDimensionLine(W, refY, refX, refY, W-refX, layer, false);
             }
             ctx.restore();
         };
@@ -1630,7 +1336,6 @@ class ReflectionMode extends LabMode {
 
             const delay = ((dReflect - dDirect) / C) * 1000; 
             const atten = 20 * Math.log10(dDirect / dReflect);
-            
             let delayColor = 'text-slate-200';
             if(delay < 5) delayColor = 'text-red-400 font-bold'; 
             else if(delay < 15) delayColor = 'text-yellow-400';
@@ -1646,19 +1351,9 @@ class ReflectionMode extends LabMode {
             `;
         };
 
-        if(this.walls.side) {
-            calcPath(s.speakers.left, 'left', 'Left Spk');
-            calcPath(s.speakers.right, 'right', 'Right Spk');
-        }
-        if(this.walls.front) {
-            calcPath(s.speakers.left, 'front', 'Left Spk');
-            calcPath(s.speakers.right, 'front', 'Right Spk');
-        }
-        if(this.walls.back) {
-            calcPath(s.speakers.left, 'back', 'Left Spk');
-            calcPath(s.speakers.right, 'back', 'Right Spk');
-        }
-
+        if(this.walls.side) { calcPath(s.speakers.left, 'left', 'Left Spk'); calcPath(s.speakers.right, 'right', 'Right Spk'); }
+        if(this.walls.front) { calcPath(s.speakers.left, 'front', 'Left Spk'); calcPath(s.speakers.right, 'front', 'Right Spk'); }
+        if(this.walls.back) { calcPath(s.speakers.left, 'back', 'Left Spk'); calcPath(s.speakers.right, 'back', 'Right Spk'); }
         if(rows === '') rows = '<tr><td colspan="5" class="py-8 text-center text-slate-600 italic">Select walls in the sidebar to visualize reflections</td></tr>';
         tbody.innerHTML = rows;
     }
@@ -1670,10 +1365,13 @@ class ReflectionMode extends LabMode {
 class TimeAlignMode extends LabMode {
     constructor(s, r) {
         super(s, r);
-        this.settings = {
-            crossover: 80,
-            speedOfSound: 343
-        };
+        this.settings = { crossover: 80, speedOfSound: 343 };
+    }
+
+    onEnter() {
+        this.active = true;
+        // FORCE MIRRORING OFF IN THIS MODE
+        this.renderer.mirrorOverride = false;
     }
 
     getSidebarHTML() {
@@ -1754,18 +1452,16 @@ class TimeAlignMode extends LabMode {
             this.settings.speedOfSound = parseFloat(inpSpeed.value) || 343;
             document.getElementById('taDispXover').innerText = this.settings.crossover;
             this.updateData();
-            this.renderer.resize(); // Redraw canvas labels
+            this.renderer.resize(); 
         };
 
         if(inpXover) inpXover.addEventListener('input', updateParams);
         if(inpSpeed) inpSpeed.addEventListener('input', updateParams);
 
-        // Disable mirroring in this mode to ensure precise placement
-        this.renderer.mirrorSettings = { enabled: false, mode: 'room' };
+        // NOTE: Mirroring is handled via renderer.mirrorOverride = false in onEnter()
         
         window.addEventListener('app-state-updated', () => {
             this.updateData();
-            // Force redraw to update lines
             this.renderer.resize(); 
         });
         
@@ -1774,88 +1470,57 @@ class TimeAlignMode extends LabMode {
 
     draw(ctx) {
         const s = this.state.get();
-        const lx = s.listener.x; 
-        const ly = s.listener.y; 
-        const lz = s.listener.z || 1.1;
+        const lx = s.listener.x; const ly = s.listener.y; const lz = s.listener.z || 1.1;
 
         const drawTimeLine = (spk, color) => {
             if (!spk) return;
             const sx = spk.x; const sy = spk.y; const sz = spk.z || 0;
-            
-            const pxS = this.renderer.toPx(sx, 'x');
-            const pyS = this.renderer.toPx(sy, 'y');
-            const pxL = this.renderer.toPx(lx, 'x');
-            const pyL = this.renderer.toPx(ly, 'y');
+            const pxS = this.renderer.toPx(sx, 'x'); const pyS = this.renderer.toPx(sy, 'y');
+            const pxL = this.renderer.toPx(lx, 'x'); const pyL = this.renderer.toPx(ly, 'y');
 
-            // 1. Draw Line
             ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(pxS, pyS);
-            ctx.lineTo(pxL, pyL);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(pxS, pyS); ctx.lineTo(pxL, pyL);
+            ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.stroke();
 
-            // 2. Calc Time (ms)
             const dist = Math.hypot(sx - lx, sy - ly, sz - lz);
             const ms = (dist / this.settings.speedOfSound) * 1000;
-
-            // 3. Draw Label
-            const midX = (pxS + pxL) / 2;
-            const midY = (pyS + pyL) / 2;
-            const txt = ms.toFixed(1) + ' ms';
-            const met = ctx.measureText(txt);
+            const midX = (pxS + pxL) / 2; const midY = (pyS + pyL) / 2;
+            const txt = ms.toFixed(1) + ' ms'; const met = ctx.measureText(txt);
             
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(midX - met.width/2 - 4, midY - 7, met.width + 8, 14);
-            
-            ctx.fillStyle = color;
-            ctx.font = 'bold 10px sans-serif'; // Bold font for readability
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(midX - met.width/2 - 4, midY - 7, met.width + 8, 14);
+            ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(txt, midX, midY);
-            
             ctx.restore();
         };
 
-        if (s.speakers.left) drawTimeLine(s.speakers.left, '#60a5fa');   // Blue
-        if (s.speakers.right) drawTimeLine(s.speakers.right, '#ef4444'); // Red
-        if (s.speakers.sub) drawTimeLine(s.speakers.sub, '#a855f7');     // Purple
+        if (s.speakers.left) drawTimeLine(s.speakers.left, '#60a5fa');
+        if (s.speakers.right) drawTimeLine(s.speakers.right, '#ef4444');
+        if (s.speakers.sub) drawTimeLine(s.speakers.sub, '#a855f7');
     }
 
     updateData() {
         const tbody = document.getElementById('taTableBody');
         const dispDiff = document.getElementById('taResDiff');
         const dispRec = document.getElementById('taResRec');
-        
         if(!tbody) return;
 
         const s = this.state.get();
         const c = this.settings.speedOfSound;
         const l = s.listener;
-
-        // Helper: Calculate true 3D distance
         const getD = (p) => Math.hypot(p.x - l.x, p.y - l.y, (p.z||0) - (l.z||1.1));
 
         const dL = getD(s.speakers.left);
         const dR = getD(s.speakers.right);
         const dSub = getD(s.speakers.sub);
 
-        // Convert to time (ms)
         const tL = (dL / c) * 1000;
         const tR = (dR / c) * 1000;
         const tSub = (dSub / c) * 1000;
-
-        // Find reference (max time)
         const maxT = Math.max(tL, tR, tSub);
-
-        // Calculate delays needed
         const delL = maxT - tL;
         const delR = maxT - tR;
         const delSub = maxT - tSub;
 
-        // Render Table
         const row = (label, dist, time, delay, colorClass) => `
             <tr class="hover:bg-slate-800/50 transition-colors border-b border-slate-800/50">
                 <td class="py-2 pl-2 text-white font-medium">${label}</td>
@@ -1872,7 +1537,6 @@ class TimeAlignMode extends LabMode {
             row('Right Speaker', dR, tR, delR, 'text-red-400') +
             row('Subwoofer', dSub, tSub, delSub, 'text-purple-400');
 
-        // Phase Calculation
         const avgMainDist = (dL + dR) / 2;
         const diffMeters = Math.abs(dSub - avgMainDist);
         const lambda = c / this.settings.crossover;
@@ -1883,7 +1547,6 @@ class TimeAlignMode extends LabMode {
         if (dispDiff) dispDiff.innerText = phaseShift.toFixed(0) + "°";
 
         if (dispRec) {
-            // Simple logic: if shift is closer to 180 than 0/360, suggest invert
             if (phaseShift > 90 && phaseShift < 270) {
                 dispRec.innerText = "INVERT POLARITY (180°)";
                 dispRec.className = "text-xs font-bold text-orange-400 uppercase bg-orange-900/30 px-2 py-1.5 rounded text-center border border-orange-800/50 shadow-[0_0_10px_rgba(251,146,60,0.2)]";

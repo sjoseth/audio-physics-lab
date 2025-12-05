@@ -1,34 +1,77 @@
 /**
  * js/lab-controller.js
  * Hovedkontrolleren for Audio Physics Lab 2.0.
- * Initierer systemet, håndterer faner, og bytter mellom Modus-klasser.
  */
+
+// Funksjonen defineres, men kjøres ikke enda
+function initMobileMenu() {
+    const btn = document.getElementById('btnMobileMenu');
+    const sidebar = document.getElementById('labSidebar');
+    const overlay = document.getElementById('mobileMenuOverlay');
+
+    if (btn && sidebar) {
+        console.log("Mobile menu initialized");
+
+        const toggleMenu = (e) => {
+            if(e && e.cancelable) { e.preventDefault(); e.stopPropagation(); }
+            const isClosed = sidebar.classList.contains('-translate-x-full');
+            if (isClosed) {
+                sidebar.classList.remove('-translate-x-full');
+                if(overlay) overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                if(overlay) overlay.classList.add('hidden');
+            }
+        };
+        
+        // Clone node trick to ensure no duplicate listeners
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        newBtn.addEventListener('click', toggleMenu);
+        newBtn.addEventListener('touchstart', toggleMenu, {passive: false});
+        
+        if (overlay) {
+            overlay.addEventListener('click', toggleMenu);
+            // overlay.addEventListener('touchstart', toggleMenu, {passive: false}); // Valgfritt
+        }
+
+        // --- VIKTIG FIKS: ISOLER SIDEBAR FRA GLOBALE TOUCH EVENTS ---
+        // Dette hindrer at touch i menyen "lekker" ut til canvas/window og blir ignorert eller avbrutt.
+        const stopProp = (e) => e.stopPropagation();
+        
+        // Vi stopper propagation, men vi kjører IKKE preventDefault() her,
+        // for da ville scrolling av menyen sluttet å virke.
+        sidebar.addEventListener('touchstart', stopProp, {passive: true});
+        sidebar.addEventListener('touchmove', stopProp, {passive: true});
+        sidebar.addEventListener('touchend', stopProp, {passive: true});
+        sidebar.addEventListener('click', stopProp); // For sikkerhets skyld
+        // -------------------------------------------------------------
+
+    } else {
+        console.error("Mobile menu elements not found!");
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Audio Lab 2.0: Booting up...');
+    
+    // --- 1. INIT MOBILE MENU (Her er endringen: Vi kaller den INNI her) ---
+    initMobileMenu();
 
-    // 1. Initier komponenter
+    // --- 2. INIT SYSTEM ---
     const stateManager = window.appState;
-    if (!stateManager) {
-        console.error('State Manager not found! script order correct?');
-        return;
-    }
+    if (!stateManager) return console.error('State Manager missing');
 
     let renderer = null;
     try {
         renderer = new LabRenderer('labCanvas', stateManager);
-        console.log('Renderer started.');
     } catch (e) {
         console.error('Canvas init failed:', e);
         return;
     }
 
-    // 2. Instansier Modus-logikken (Disse kommer fra lab-modes.js)
-    // Sjekk at klassene finnes før vi bruker dem
-    if (typeof RoomMode === 'undefined' || typeof SpeakerMode === 'undefined') {
-        console.error('Mode classes missing. Is lab-modes.js loaded?');
-        return;
-    }
+    if (typeof RoomMode === 'undefined') return console.error('Modes missing');
 
     const modes = {
         room: new RoomMode(stateManager, renderer),
@@ -39,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentMode = null;
 
-    // 3. Koble Global Room Settings (Sidebar topp)
+    // --- 3. GLOBAL ROOM SETTINGS ---
     const inputs = {
         L: document.getElementById('globalInputL'),
         W: document.getElementById('globalInputW'),
@@ -47,70 +90,54 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const updateStateFromDOM = () => {
-        const l = parseFloat(inputs.L.value); // X (Width i state)
-        const w = parseFloat(inputs.W.value); // Y (Length i state)
+        const l = parseFloat(inputs.L.value);
+        const w = parseFloat(inputs.W.value);
         const h = parseFloat(inputs.H.value);
 
         if (!isNaN(l) && !isNaN(w) && !isNaN(h)) {
-            // Hent nåværende state
             const current = stateManager.get();
-            
-            // Clamp funksjon: Sørg for at objekter holder seg innenfor nye grenser
             const clamp = (val, max) => Math.max(0.1, Math.min(val, max - 0.1));
             
             stateManager.update({
                 room: { width: l, length: w, height: h },
-                // PUNKT 1: Sjekk bounds ved resize
                 speakers: {
                     left: { ...current.speakers.left, x: clamp(current.speakers.left.x, l), y: clamp(current.speakers.left.y, w) },
                     right: { ...current.speakers.right, x: clamp(current.speakers.right.x, l), y: clamp(current.speakers.right.y, w) },
                     sub: { ...current.speakers.sub, x: clamp(current.speakers.sub.x, l), y: clamp(current.speakers.sub.y, w) }
                 },
-                listener: {
-                    ...current.listener,
-                    x: clamp(current.listener.x, l),
-                    y: clamp(current.listener.y, w)
-                }
+                listener: { ...current.listener, x: clamp(current.listener.x, l), y: clamp(current.listener.y, w) }
             });
         }
     };
 
     const syncDOMFromState = (s) => {
-        if (document.activeElement !== inputs.L) inputs.L.value = s.room.width; 
-        if (document.activeElement !== inputs.W) inputs.W.value = s.room.length; 
-        if (document.activeElement !== inputs.H) inputs.H.value = s.room.height;
+        const updateIfChanged = (el, newVal) => {
+            if (document.activeElement === el) {
+                if (Math.abs(parseFloat(el.value) - newVal) < 0.01) return;
+            }
+            el.value = newVal;
+        };
+
+        updateIfChanged(inputs.L, s.room.width);
+        updateIfChanged(inputs.W, s.room.length);
+        updateIfChanged(inputs.H, s.room.height);
     };
 
     if(inputs.L) inputs.L.addEventListener('input', updateStateFromDOM);
     if(inputs.W) inputs.W.addEventListener('input', updateStateFromDOM);
     if(inputs.H) inputs.H.addEventListener('input', updateStateFromDOM);
 
-    // Lytt til state endringer (f.eks fra dragging)
-    window.addEventListener('app-state-updated', (e) => {
-        syncDOMFromState(e.detail);
-    });
-    // Initielle verdier
+    window.addEventListener('app-state-updated', (e) => syncDOMFromState(e.detail));
     syncDOMFromState(stateManager.get());
 
-
-    // 4. Modus-bytte Logikk (Tabs)
+    // --- 4. MODUS-BYTTE ---
     const setMode = (modeName) => {
         if (!modes[modeName]) return;
+        if (currentMode && typeof currentMode.onExit === 'function') currentMode.onExit();
         
-        console.log(`Switching mode to: ${modeName}`);
-
-        // A. Rydd opp gammel modus
-        if (currentMode) {
-            if (typeof currentMode.onExit === 'function') currentMode.onExit();
-        }
-
-        // B. Aktiver ny modus
         currentMode = modes[modeName];
-        
-        // C. Fortell renderer hvem som er sjefen nå
         renderer.activeMode = currentMode;
 
-        // D. Injiser UI (HTML)
         const sidebarContainer = document.getElementById('labModeControls');
         const bottomContainer = document.getElementById('labBottomContent');
         
@@ -121,11 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
             bottomContainer.innerHTML = currentMode.getBottomPanelHTML();
         }
 
-        // E. Aktiver logikk og bind events til den nye HTML-en
         if (typeof currentMode.onEnter === 'function') currentMode.onEnter();
         if (typeof currentMode.bindEvents === 'function') currentMode.bindEvents();
 
-        // F. Oppdater Faner visuelt
         document.querySelectorAll('.tab-btn').forEach(t => {
             if (t.dataset.mode === modeName) {
                 t.classList.add('active', 'text-slate-300', 'border-blue-500');
@@ -135,41 +160,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 t.classList.add('text-slate-400', 'border-transparent');
             }
         });
+        renderer.resize();
         
-        // Tving en redraw
-        renderer.resize(); 
-    };
-
-    // Bind klikk på faner
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => setMode(btn.dataset.mode));
-    });
-
-    // Start i Room Mode
-    setMode('room');
-
-
-    // 5. UI Helpers (Mobilmeny & Panel Toggle)
-    
-    // Mobil Meny
-    const btnMobileMenu = document.getElementById('btnMobileMenu');
-    const sidebar = document.getElementById('labSidebar');
-    const overlay = document.getElementById('mobileMenuOverlay');
-
-    const toggleMenu = () => {
-        const isClosed = sidebar.classList.contains('-translate-x-full');
-        if (isClosed) {
-            sidebar.classList.remove('-translate-x-full');
-            if(overlay) overlay.classList.remove('hidden');
-        } else {
+        // Auto-close menu on selection
+        const sidebar = document.getElementById('labSidebar');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        if (window.innerWidth < 768 && sidebar) {
             sidebar.classList.add('-translate-x-full');
             if(overlay) overlay.classList.add('hidden');
         }
     };
-    if(btnMobileMenu) btnMobileMenu.addEventListener('click', toggleMenu);
-    if(overlay) overlay.addEventListener('click', toggleMenu);
 
-    // Bunnpanel Toggle
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('touchstart', (e) => {
+            setMode(btn.dataset.mode);
+        }, {passive: true});
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
+    setMode('room');
+
+    // --- 5. PANEL TOGGLE ---
     const toggleBtn = document.getElementById('toggleBottomPanel');
     const bottomPanel = document.getElementById('labBottomPanel');
     const icon = document.getElementById('bottomPanelIcon');
@@ -179,13 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBtn.addEventListener('click', () => {
             panelOpen = !panelOpen;
             if(panelOpen) {
-                bottomPanel.style.height = '16rem'; // h-64
+                bottomPanel.style.height = '16rem';
                 if(icon) icon.style.transform = 'rotate(0deg)';
             } else {
-                bottomPanel.style.height = '2rem'; // Kollapset
+                bottomPanel.style.height = '2rem';
                 if(icon) icon.style.transform = 'rotate(180deg)';
             }
-            // Vent litt på CSS transition før vi ber canvas oppdatere størrelsen
             setTimeout(() => { if(renderer) renderer.resize(); }, 350);
         });
     }
