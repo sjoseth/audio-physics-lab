@@ -1,4 +1,4 @@
-# Audio Physics Lab 2.0 (Beta) 🎧
+# Audio Physics Lab 1.0 (Beta) 🎧
 
 **Real-time acoustic simulation and optimization suite running 100% in your browser.**
 
