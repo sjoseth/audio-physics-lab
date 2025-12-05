@@ -285,7 +285,12 @@ class LabRenderer {
         };
 
         const handleUp = (e) => {
-            if (e.cancelable) e.preventDefault();
+            // ENDRING: Kun kjør preventDefault hvis vi faktisk drar på noe.
+            // Hvis vi ikke drar, la nettleseren håndtere klikket (f.eks. stoppe input-telleren)
+            if (this.isDragging && e.cancelable) {
+                e.preventDefault();
+            }
+            
             this.isDragging = null;
             this.canvas.style.cursor = this.hovered ? 'grab' : 'default';
         };
@@ -294,6 +299,8 @@ class LabRenderer {
         this.canvas.addEventListener('touchstart', handleDown, { passive: false });
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('touchmove', handleMove, { passive: false });
+        
+        // Disse lytterene bruker handleUp som vi nettopp fikset:
         window.addEventListener('mouseup', handleUp);
         window.addEventListener('touchend', handleUp);
     }

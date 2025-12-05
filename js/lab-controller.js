@@ -77,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
         room: new RoomMode(stateManager, renderer),
         speaker: new SpeakerMode(stateManager, renderer),
         reflection: new ReflectionMode(stateManager, renderer),
-        timealign: new TimeAlignMode(stateManager, renderer)
+        timealign: new TimeAlignMode(stateManager, renderer),
+        peq: new PeqMode(stateManager, renderer)
     };
 
     let currentMode = null;

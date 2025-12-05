@@ -636,6 +636,7 @@ class SpeakerMode extends LabMode {
         this.settings = { smoothing: false, minHz: 20, maxHz: 20000 };
         this.C = 343;
         this.physParams = { wooferSize: 6.5, tweeterSize: 1.0, crossover: 2500, baffleWidth: 30 };
+        this.overlay = 'none'; 
     }
 
     onEnter() {
@@ -660,6 +661,18 @@ class SpeakerMode extends LabMode {
 
         return `
             <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mb-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Guides & Overlays</h3>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] text-slate-400">Placement Guide</label>
+                    <select id="spSelectOverlay" class="input-dark text-[10px] rounded p-1 w-36 bg-slate-900 border border-slate-700 text-white">
+                        <option value="none" ${this.overlay === 'none' ? 'selected' : ''}>None</option>
+                        <option value="cardas" ${this.overlay === 'cardas' ? 'selected' : ''}>Cardas Method</option>
+                        <option value="thirds" ${this.overlay === 'thirds' ? 'selected' : ''}>Rule of Thirds</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mb-4">
                 <h3 class="text-xs font-bold text-slate-300 uppercase mb-3">Stereo Geometry</h3>
                 <div class="grid grid-cols-3 gap-2 text-center">
                     <div class="bg-slate-900 rounded p-2 border border-slate-800">
@@ -677,9 +690,13 @@ class SpeakerMode extends LabMode {
                 </div>
             </div>
 
+            ${this._getOriginalSidebarContent(s, adv, z, mirrorEnabled, mirrorMode)}
+        `;
+    }
+    _getOriginalSidebarContent(s, adv, z, mirrorEnabled, mirrorMode) {
+        return `
             <div class="control-card p-4 rounded-xl bg-green-950/20 border border-green-900/30 mb-4">
                 <h3 class="text-xs font-bold text-green-400 mb-3 uppercase">Position & Alignment</h3>
-                
                 <div class="mb-3">
                     <div class="flex justify-between mb-1">
                         <label class="text-[10px] text-slate-400">Toe-In Angle</label>
@@ -687,17 +704,14 @@ class SpeakerMode extends LabMode {
                     </div>
                     <input type="range" id="spInputToe" min="0" max="45" value="${adv.toeInAngle || 10}" class="range-slider w-full">
                 </div>
-
                  <div class="mb-3">
                     <label class="text-[10px] text-slate-400 block mb-1">Speaker Height (Z)</label>
                     <input type="number" id="spInputZ" value="${z}" step="0.05" class="input-dark w-full rounded p-1 text-xs bg-slate-900 border border-slate-700 text-white">
                 </div>
-
                 <div class="flex items-center justify-between mb-2 border-t border-green-900/30 pt-2">
                     <label class="text-xs text-slate-300">Link Speakers</label>
                     <input type="checkbox" id="spCheckMirror" class="accent-green-500" ${mirrorEnabled ? 'checked' : ''}>
                 </div>
-                
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] text-slate-400">Mirror Around</label>
                     <select id="spSelectMirrorMode" class="input-dark text-[10px] rounded p-1 w-24 bg-slate-900 border border-slate-700 text-white">
@@ -792,6 +806,14 @@ class SpeakerMode extends LabMode {
             });
         }
 
+        const selOverlay = document.getElementById('spSelectOverlay');
+        if(selOverlay) {
+            selOverlay.addEventListener('change', (e) => {
+                this.overlay = e.target.value;
+                this.renderer.resize(); // Trigger redraw via renderer loop
+            });
+        }
+
         const checkSmooth = document.getElementById('spCheckSmooth');
         if(checkSmooth) {
             checkSmooth.addEventListener('change', (e) => {
@@ -839,8 +861,63 @@ class SpeakerMode extends LabMode {
     draw(ctx) {
         const s = this.state.get();
         const adv = s.advanced || { toeInAngle: 10 };
+        const W = s.room.width;
+        const L = s.room.length;
 
-        // Heatmap Background
+        // --- 1. TEGN STATISKE HJELPELINJER (W/3 og W/4) ---
+        // Dette hjelper brukeren med å se symmetri og proporsjoner umiddelbart
+        const w3_left = W / 3;
+        const w4_left = W / 4;
+        const w3_right = W - (W / 3);
+        const w4_right = W - (W / 4);
+
+        const y0 = this.renderer.toPx(0, 'y');
+        const y1 = this.renderer.toPx(L, 'y');
+        
+        ctx.save();
+        
+        // Tegn svake "soner" mellom W/3 og W/4
+        const px_w4_l = this.renderer.toPx(w4_left, 'x');
+        const px_w3_l = this.renderer.toPx(w3_left, 'x');
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.03)'; // Svært svak blå
+        ctx.fillRect(px_w3_l, y0, px_w4_l - px_w3_l, y1 - y0);
+
+        const px_w4_r = this.renderer.toPx(w4_right, 'x');
+        const px_w3_r = this.renderer.toPx(w3_right, 'x');
+        ctx.fillRect(px_w3_r, y0, px_w4_r - px_w3_r, y1 - y0);
+
+        // Tegn stiplede linjer
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)'; 
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        
+        [w3_left, w4_left, w3_right, w4_right].forEach(mx => {
+            const px = this.renderer.toPx(mx, 'x');
+            ctx.beginPath(); ctx.moveTo(px, y0); ctx.lineTo(px, y1); ctx.stroke();
+        });
+
+        // Tegn 38% linjen (kjent utgangspunkt for lytterposisjon)
+        const ly38 = L * 0.38;
+        const py38 = this.renderer.toPx(ly38, 'y');
+        const x0 = this.renderer.toPx(0, 'x');
+        const x1 = this.renderer.toPx(W, 'x');
+        
+        ctx.strokeStyle = 'rgba(234, 179, 8, 0.15)'; // Svak gul
+        ctx.beginPath(); ctx.moveTo(x0, py38); ctx.lineTo(x1, py38); ctx.stroke();
+
+        // Tegn etiketter
+        ctx.fillStyle = 'rgba(148,163,184,0.4)'; 
+        ctx.font = '9px sans-serif'; 
+        ctx.textAlign = 'center';
+        ctx.fillText('W/3', px_w3_l, y0 + 12);
+        ctx.fillText('W/4', px_w4_l, y0 + 12);
+        
+        ctx.textAlign = 'right';
+        ctx.fillText('38%', x0 + 20, py38 - 4);
+        ctx.restore();
+
+
+        // --- 2. TEGN HEATMAP (hvis aktiv) ---
         if (this.heatmap.active && this.heatmap.data.length > 0) {
             this.heatmap.data.forEach(cell => {
                 const px = this.renderer.toPx(cell.x - cell.w/2, 'x');
@@ -853,7 +930,73 @@ class SpeakerMode extends LabMode {
             });
         }
 
-        // Draw Cones
+
+        // --- 3. TEGN OVERLAYS (Cardas / Thirds) ---
+        if (this.overlay && this.overlay !== 'none') {
+            let gx, gy, ly_ghost;
+
+            // Hjelpefunksjon for å tegne "spøkelses-høyttaler"
+            const drawGhostSpk = (x, y, name) => {
+                const px = this.renderer.toPx(x, 'x');
+                const py = this.renderer.toPx(y, 'y');
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; 
+                ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                ctx.strokeRect(px - 10, py - 10, 20, 20);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; 
+                ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(name, px, py - 14); 
+                ctx.restore();
+            };
+
+            // Hjelpefunksjon for "spøkelses-lytter"
+            const drawGhostLis = (y, name) => {
+                const px = this.renderer.toPx(W / 2, 'x');
+                const py = this.renderer.toPx(y, 'y');
+                ctx.save();
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)'; 
+                ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.stroke();
+                
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.6)'; 
+                ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(name, px, py + 20); 
+                ctx.restore();
+            };
+
+            if (this.overlay === 'cardas') {
+                // Cardas: Golden Ratio
+                // Woofer plassering fra sidevegg: Room Width * 0.276
+                // Woofer plassering fra bakvegg: Room Width * 0.447
+                gx = W * 0.276; 
+                gy = W * 0.447;
+                
+                drawGhostSpk(gx, gy, 'Cardas');
+                drawGhostSpk(W - gx, gy, 'Cardas');
+                
+                // Cardas Golden Cuboid lytterposisjon (Likesidet trekant)
+                const spread = W - (2 * gx); 
+                const height = spread * Math.sin(Math.PI / 3); 
+                ly_ghost = gy + height; 
+                drawGhostLis(ly_ghost, 'Ref Pos');
+
+            } else if (this.overlay === 'thirds') {
+                // Rule of Thirds
+                gx = W / 3; 
+                gy = L / 3; // 1/3 ut i rommet
+
+                drawGhostSpk(gx, gy, '1/3');
+                drawGhostSpk(W - gx, gy, '1/3');
+                
+                // Lytter på 2/3
+                ly_ghost = L * (2/3); 
+                drawGhostLis(ly_ghost, '2/3');
+            }
+        }
+
+
+        // --- 4. TEGN HØYTTALER-KONER OG LYTTER (Standard) ---
         const drawCone = (spk, label) => {
             const px = this.renderer.toPx(spk.x, 'x');
             const py = this.renderer.toPx(spk.y, 'y');
@@ -1149,14 +1292,25 @@ class ReflectionMode extends LabMode {
             </div>
             
             <div class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
-                 <h3 class="text-xs font-bold text-slate-300 mb-2 uppercase">Acoustic Treatment</h3>
-                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                   Orange prikker viser det præcise punkt på væggen, hvor lyden reflekteres. 
-                   <br><br>
-                   Heltrukken linje = 1. refleksjon.<br>
-                   Stiplet linje = Kryss-refleksjon.
-                 </p>
-            </div>
+    <h3 class="text-xs font-bold text-slate-300 mb-2 uppercase">Acoustic Treatment</h3>
+    <div class="text-[10px] text-slate-400 leading-relaxed space-y-2">
+        <p>
+            The orange dots mark the exact impact points on your walls. These are the optimal locations for placing acoustic absorption panels.
+        </p>
+        <ul class="space-y-1 mt-2">
+            <li>
+                <span class="text-orange-400 font-bold">Solid Line:</span> 
+                <span class="text-slate-300">Primary Reflection.</span> 
+                Treat these first to improve clarity and imaging.
+            </li>
+            <li>
+                <span class="text-orange-300 font-bold">Dashed Line:</span> 
+                <span class="text-slate-300">Cross-Reflection.</span> 
+                Sound from the opposite speaker (Left speaker reflecting on Right wall).
+            </li>
+        </ul>
+    </div>
+</div>
         `;
     }
 
@@ -1555,5 +1709,561 @@ class TimeAlignMode extends LabMode {
                 dispRec.className = "text-xs font-bold text-green-400 uppercase bg-green-900/30 px-2 py-1.5 rounded text-center border border-green-800/50 shadow-[0_0_10px_rgba(74,222,128,0.2)]";
             }
         }
+    }
+}
+
+// ============================================================================
+// 5. PEQ GENERATOR MODE (Standalone & Live)
+// ============================================================================
+class PeqMode extends LabMode {
+    constructor(s, r) {
+        super(s, r);
+        this.chart = null;
+        this.C = 343;
+        
+        // Settings state
+        this.peq = {
+            filters: [],
+            threshold: 1.5,
+            targetLevel: 'auto',
+            targetCurve: 0,
+            targetOffset: 0,
+            crossover: 80,
+            viewMaxF: 200,
+            maxFilters: 5,
+            minF: 20,
+            maxF: 200,
+            
+            // NYE GRENSER
+            maxCut: 12,    // Maks demping (dB)
+            maxBoost: 0,   // Maks heving (dB)
+            
+            couchMode: false
+        };
+
+        this.pendingUpdate = false;
+    }
+
+    onEnter() {
+        this.active = true;
+        this.renderer.mirrorOverride = null;
+        this.runAutoEQ(); 
+    }
+
+    getSidebarHTML() {
+        return `
+            <div class="control-card p-4 rounded-xl bg-pink-950/20 border border-pink-900/30 space-y-4">
+                <h3 class="text-xs font-bold text-pink-400 uppercase">Auto EQ Generator</h3>
+                <p class="text-[10px] text-slate-400">
+                    Move the subwoofer to see filters update live. The algorithm targets peaks (and dips if boost is allowed) up to the crossover frequency.
+                </p>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-slate-400 block mb-1">Calculation Mode</label>
+                        <div class="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-700">
+                            <span class="text-xs text-slate-300">Couch Average (3-point)</span>
+                            <input type="checkbox" id="peqCheckCouch" ${this.peq.couchMode ? 'checked' : ''} class="accent-pink-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-slate-400">Crossover (LPF)</label>
+                            <input type="number" id="peqInputXover" value="${this.peq.crossover}" step="5" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400">Graph View Max</label>
+                            <input type="number" id="peqInputViewMax" value="${this.peq.viewMaxF}" step="10" min="50" max="500" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
+                        <div>
+                            <label class="text-[10px] text-slate-400">Max Cut (dB)</label>
+                            <input type="number" id="peqInputMaxCut" value="${this.peq.maxCut}" step="1" min="0" max="40" class="input-dark w-full rounded p-1 text-xs text-red-300">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400">Max Boost (dB)</label>
+                            <input type="number" id="peqInputMaxBoost" value="${this.peq.maxBoost}" step="1" min="0" max="10" class="input-dark w-full rounded p-1 text-xs text-green-300">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-slate-400">Threshold (dB)</label>
+                            <input type="number" id="peqInputThresh" value="${this.peq.threshold}" step="0.5" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400">Max Filters</label>
+                            <input type="number" id="peqInputCount" value="${this.peq.maxFilters}" step="1" class="input-dark w-full rounded p-1 text-xs">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-[10px] text-slate-400">Target Boost (Harman)</label>
+                            <span id="peqDispBoost" class="text-[10px] text-white">${this.peq.targetCurve}dB</span>
+                        </div>
+                        <input type="range" id="peqInputBoost" min="0" max="20" step="1" value="${this.peq.targetCurve}" class="range-slider w-full">
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-[10px] text-slate-400">Target Level Offset</label>
+                            <span id="peqDispOffset" class="text-[10px] text-white">${this.peq.targetOffset > 0 ? '+' : ''}${this.peq.targetOffset}dB</span>
+                        </div>
+                        <input type="range" id="peqInputOffset" min="-20" max="20" step="0.5" value="${this.peq.targetOffset}" class="range-slider w-full">
+                    </div>
+                </div>
+            </div>
+
+            <div id="peqResultContainer" class="control-card p-4 rounded-xl bg-slate-800/50 border border-slate-700 mt-4">
+                <h3 class="text-xs font-bold text-slate-300 uppercase mb-2">Live Filters</h3>
+                
+                <div class="max-h-56 overflow-y-auto custom-scrollbar border border-slate-700 rounded bg-slate-900/50 mb-3">
+                    <table class="w-full text-[10px] text-left">
+                        <thead class="bg-slate-800 text-slate-400 sticky top-0">
+                            <tr>
+                                <th class="p-2 pl-3">Hz</th>
+                                <th class="p-2">Gain</th>
+                                <th class="p-2">Q</th>
+                            </tr>
+                        </thead>
+                        <tbody id="peqTableBody" class="font-mono text-slate-300 divide-y divide-slate-800">
+                            ${this.renderTableRows()}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <button id="peqBtnCopy" class="w-full py-2 rounded border border-slate-600 text-xs text-slate-300 hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                    Copy to Clipboard
+                </button>
+            </div>
+        `;
+    }
+
+    renderTableRows() {
+        if (this.peq.filters.length === 0) {
+            return `<tr><td colspan="3" class="p-4 text-center text-slate-500 italic">No peaks (or dips) found</td></tr>`;
+        }
+        return this.peq.filters.map(f => {
+            // Fargekode Gain (Rød = cut, Grønn = boost)
+            const colorClass = f.gain < 0 ? 'text-red-400' : 'text-green-400';
+            const sign = f.gain > 0 ? '+' : '';
+            return `
+            <tr class="hover:bg-slate-800/50 transition-colors">
+                <td class="p-1 pl-3 text-blue-300">${f.f}</td>
+                <td class="p-1 ${colorClass} font-bold">${sign}${f.gain}</td>
+                <td class="p-1 text-slate-400">${f.q}</td>
+            </tr>
+        `}).join('');
+    }
+
+    getBottomPanelHTML() {
+        return `<div class="relative w-full h-full p-2"><canvas id="peqChart"></canvas></div>`;
+    }
+
+    bindEvents() {
+        const bindInp = (id, key, type = 'float') => {
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('input', (e) => {
+                const val = type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
+                this.peq[key] = val;
+                
+                if(id === 'peqInputBoost') document.getElementById('peqDispBoost').innerText = val + 'dB';
+                if(id === 'peqInputOffset') document.getElementById('peqDispOffset').innerText = (val > 0 ? '+' : '') + val + 'dB';
+                
+                this.triggerLiveUpdate();
+            });
+        };
+
+        bindInp('peqInputThresh', 'threshold');
+        bindInp('peqInputCount', 'maxFilters', 'int');
+        bindInp('peqInputBoost', 'targetCurve');
+        bindInp('peqInputOffset', 'targetOffset');
+        bindInp('peqInputXover', 'crossover', 'int');
+        bindInp('peqInputViewMax', 'viewMaxF', 'int');
+        
+        // NYE LISTENERS
+        bindInp('peqInputMaxCut', 'maxCut');
+        bindInp('peqInputMaxBoost', 'maxBoost');
+
+        const chkCouch = document.getElementById('peqCheckCouch');
+        if(chkCouch) chkCouch.addEventListener('change', (e) => {
+            this.peq.couchMode = e.target.checked;
+            this.triggerLiveUpdate();
+        });
+
+        const btnCopy = document.getElementById('peqBtnCopy');
+        if(btnCopy) {
+            btnCopy.addEventListener('click', () => {
+                const txt = this.peq.filters.map(f => 
+                    `Filter  ON  PK       Fc ${f.f} Hz  Gain ${f.gain} dB  Q ${f.q}`
+                ).join('\n');
+                navigator.clipboard.writeText(txt).then(() => {
+                    const orig = btnCopy.innerHTML;
+                    btnCopy.innerHTML = "Copied!";
+                    setTimeout(() => btnCopy.innerHTML = orig, 1500);
+                });
+            });
+        }
+
+        window.addEventListener('app-state-updated', () => {
+            if (this.active) this.triggerLiveUpdate();
+        });
+
+        this.initChart();
+    }
+
+    triggerLiveUpdate() {
+        if (!this.pendingUpdate) {
+            this.pendingUpdate = true;
+            requestAnimationFrame(() => {
+                this.runAutoEQ();
+                this.pendingUpdate = false;
+            });
+        }
+    }
+
+    draw(ctx) {
+        const s = this.state.get();
+        const drawEnt = (pos, color) => {
+            const px = this.renderer.toPx(pos.x, 'x');
+            const py = this.renderer.toPx(pos.y, 'y');
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2); ctx.fill();
+        };
+        if(s.speakers.sub) drawEnt(s.speakers.sub, '#a855f7');
+        drawEnt(s.listener, '#22c55e');
+    }
+
+    // --- PHYSICS & MATH ---
+
+    calculateModes(L, W, H) {
+        const modes = [];
+        const maxOrder = 10; const maxF = 300; 
+        
+        for (let n = 1; n <= maxOrder; n++) {
+            modes.push({ f: (this.C / 2) * (n / L), nx: n, ny: 0, nz: 0 });
+            modes.push({ f: (this.C / 2) * (n / W), nx: 0, ny: n, nz: 0 });
+            modes.push({ f: (this.C / 2) * (n / H), nx: 0, ny: 0, nz: n });
+        }
+        for (let x = 1; x <= 4; x++) for (let y = 1; y <= 4; y++) {
+            const f = (this.C / 2) * Math.sqrt((x / L) ** 2 + (y / W) ** 2);
+            if (f < maxF) modes.push({ f, nx: x, ny: y, nz: 0 });
+        }
+        for (let x = 1; x <= 3; x++) for (let z = 1; z <= 3; z++) {
+            const f = (this.C / 2) * Math.sqrt((x / L) ** 2 + (z / H) ** 2);
+            if (f < maxF) modes.push({ f, nx: x, ny: 0, nz: z });
+        }
+        for (let y = 1; y <= 3; y++) for (let z = 1; z <= 3; z++) {
+            const f = (this.C / 2) * Math.sqrt((y / W) ** 2 + (z / H) ** 2);
+            if (f < maxF) modes.push({ f, nx: 0, ny: y, nz: z });
+        }
+        return modes.sort((a, b) => a.f - b.f);
+    }
+
+    simulatePoint(modes, srcPos, recPos, L, W, H) {
+        const data = [];
+        const dist = Math.hypot(srcPos.x - recPos.x, srcPos.y - recPos.y, (srcPos.z||0) - (recPos.z||0)) || 0.1;
+        const dirScale = 100 / dist; 
+        const damping = 10;
+
+        for (let f = this.peq.minF; f <= 500; f++) {
+            let r = 0; let i = 0;
+            const k = (2 * Math.PI * f) / this.C;
+            r += dirScale * Math.cos(-k * dist);
+            i += dirScale * Math.sin(-k * dist);
+
+            modes.forEach(m => {
+                if (m.f > 400) return;
+                const src = Math.cos(m.nx * Math.PI * srcPos.x / L) * Math.cos(m.ny * Math.PI * srcPos.y / W) * Math.cos(m.nz * Math.PI * (srcPos.z||0) / H);
+                const rec = Math.cos(m.nx * Math.PI * recPos.x / L) * Math.cos(m.ny * Math.PI * recPos.y / W) * Math.cos(m.nz * Math.PI * (recPos.z||0) / H);
+                const num = src * rec;
+                const dr = (m.f ** 2) - (f ** 2);
+                const di = (f * m.f) / damping; 
+                const mag = dr ** 2 + di ** 2;
+                const scl = 50000; 
+                r += (num * dr * scl) / mag;
+                i += (num * (-di) * scl) / mag;
+            });
+            data.push(20 * Math.log10(Math.sqrt(r ** 2 + i ** 2) + 1e-6));
+        }
+        return data;
+    }
+
+    calculateFilterGain(f, fc, gain, q) {
+        if (gain === 0) return 0;
+        const w = 2 * Math.PI * f / 48000; 
+        const w0 = 2 * Math.PI * fc / 48000;
+        const alpha = Math.sin(w0) / (2 * q);
+        const A = Math.pow(10, gain / 40);
+        const b0 = 1 + alpha * A; const b1 = -2 * Math.cos(w0); const b2 = 1 - alpha * A;
+        const a0 = 1 + alpha / A; const a1 = -2 * Math.cos(w0); const a2 = 1 - alpha / A;
+        const num = b0*b0 + b1*b1 + b2*b2 + 2*(b0*b1 + b1*b2)*Math.cos(w) + 2*b0*b2*Math.cos(2*w);
+        const den = a0*a0 + a1*a1 + a2*a2 + 2*(a0*a1 + a1*a2)*Math.cos(w) + 2*a0*a2*Math.cos(2*w);
+        return 10 * Math.log10(num / den);
+    }
+
+    getTargetCurveData(length, offset = 0) {
+        const data = [];
+        for (let i = 0; i < length; i++) {
+            const f = this.peq.minF + i;
+            let val = 0;
+            if (this.peq.targetCurve > 0) {
+                const lowCorner = 45; const highCorner = 150; 
+                if (f <= lowCorner) val = this.peq.targetCurve;
+                else if (f < highCorner) {
+                    const ratio = (f - lowCorner) / (highCorner - lowCorner);
+                    val = this.peq.targetCurve * (1 - (1 - Math.cos(ratio * Math.PI)) / 2);
+                }
+            }
+            data.push(val + offset);
+        }
+        return data;
+    }
+
+    getGainMatchOffset(rawData, targetDataArr, minHz, maxHz) {
+        let sumDiff = 0; let count = 0;
+        const startIdx = Math.max(0, minHz - this.peq.minF);
+        
+        for (let i = 0; i < rawData.length; i++) {
+            const p = rawData[i];
+            if (p.f >= minHz && p.f <= maxHz) {
+                const tVal = targetDataArr[i]; 
+                const diff = p.db - tVal;
+                sumDiff += diff;
+                count++;
+            }
+        }
+        return count > 0 ? sumDiff / count : 0;
+    }
+
+    // --- MAIN LOGIC (Med BOOST og Limits) ---
+
+    runAutoEQ() {
+        const s = this.state.get();
+        const L = s.room.width; const W = s.room.length; const H = s.room.height;
+        const modes = this.calculateModes(L, W, H);
+        
+        let rawResponse = this.simulatePoint(modes, s.speakers.sub, s.listener, L, W, H);
+        
+        if (this.peq.couchMode) {
+            const offset = 0.5;
+            const lPos = { ...s.listener, x: Math.max(0.1, s.listener.x - offset) };
+            const rPos = { ...s.listener, x: Math.min(L - 0.1, s.listener.x + offset) };
+            const respL = this.simulatePoint(modes, s.speakers.sub, lPos, L, W, H);
+            const respR = this.simulatePoint(modes, s.speakers.sub, rPos, L, W, H);
+            rawResponse = rawResponse.map((v, i) => (v + respL[i] + respR[i]) / 3);
+        }
+
+        this.currentRawData = rawResponse.map((v, i) => ({ f: this.peq.minF + i, db: v }));
+
+        const baseTargetArr = this.getTargetCurveData(this.currentRawData.length, 0);
+        const autoOffset = this.getGainMatchOffset(this.currentRawData, baseTargetArr, 20, this.peq.crossover);
+        
+        const workingData = this.currentRawData.map(p => ({ f: p.f, db: p.db - autoOffset }));
+        const eqTargetData = this.getTargetCurveData(workingData.length, this.peq.targetOffset);
+
+        this.peq.filters = [];
+        const MIN_SEPARATION = 5; // Hz - Minimum avstand mellom filtre
+        
+        for (let iter = 0; iter < this.peq.maxFilters; iter++) {
+            let maxDeviation = 0;
+            let peakIdx = -1;
+            let type = 'none';
+
+            for (let i = 1; i < workingData.length - 1; i++) {
+                const freq = workingData[i].f;
+                
+                // STOPP hvis over XO
+                if (freq > this.peq.crossover) continue;
+
+                // NYTT: Sjekk om vi er for nær et eksisterende filter
+                const isTooClose = this.peq.filters.some(f => Math.abs(f.f - freq) < MIN_SEPARATION);
+                if (isTooClose) continue;
+
+                const diff = workingData[i].db - eqTargetData[i];
+                
+                // Sjekk Peak
+                if (diff > this.peq.threshold) {
+                    if (diff > maxDeviation) {
+                        if (workingData[i].db > workingData[i-1].db && workingData[i].db > workingData[i+1].db) {
+                            maxDeviation = diff;
+                            peakIdx = i;
+                            type = 'peak';
+                        }
+                    }
+                }
+                // Sjekk Dip
+                else if (this.peq.maxBoost > 0 && diff < -this.peq.threshold) {
+                    const absDiff = Math.abs(diff);
+                    if (absDiff > maxDeviation) {
+                        if (workingData[i].db < workingData[i-1].db && workingData[i].db < workingData[i+1].db) {
+                            maxDeviation = absDiff;
+                            peakIdx = i;
+                            type = 'dip';
+                        }
+                    }
+                }
+            }
+
+            if (peakIdx === -1) break;
+
+            const peakF = workingData[peakIdx].f;
+            const peakVal = workingData[peakIdx].db;
+            let gain = 0;
+
+            if (type === 'peak') {
+                gain = -(maxDeviation - 1.0); 
+                if (gain < -this.peq.maxCut) gain = -this.peq.maxCut;
+            } else {
+                gain = (maxDeviation - 1.0);
+                if (gain > this.peq.maxBoost) gain = this.peq.maxBoost;
+            }
+
+            // Enkel Q-beregning
+            let limitVal = peakVal - (type === 'peak' ? 3 : -3);
+            let fLow = peakF; let fHigh = peakF;
+            
+            for(let j=peakIdx; j>=0; j--) {
+                const val = workingData[j].db;
+                if ((type === 'peak' && val <= limitVal) || (type === 'dip' && val >= limitVal)) { fLow = workingData[j].f; break; }
+            }
+            for(let j=peakIdx; j<workingData.length; j++) {
+                const val = workingData[j].db;
+                if ((type === 'peak' && val <= limitVal) || (type === 'dip' && val >= limitVal)) { fHigh = workingData[j].f; break; }
+            }
+            
+            let bw = fHigh - fLow;
+            if(bw < 2) bw = 2;
+            let q = peakF / bw;
+            if(q < 1.0) q = 1.0; if(q > 15) q = 15;
+
+            const filter = { f: peakF, gain: parseFloat(gain.toFixed(1)), q: parseFloat(q.toFixed(2)) };
+            this.peq.filters.push(filter);
+
+            for(let i=0; i<workingData.length; i++) {
+                workingData[i].db += this.calculateFilterGain(workingData[i].f, filter.f, filter.gain, filter.q);
+            }
+        }
+
+        this.peq.filters.sort((a,b) => a.f - b.f);
+        
+        const tbody = document.getElementById('peqTableBody');
+        if(tbody) {
+            tbody.innerHTML = this.renderTableRows();
+        }
+
+        this.updateChart();
+    }
+
+    initChart() {
+        const ctx = document.getElementById('peqChart').getContext('2d');
+        const crossoverLinePlugin = {
+            id: 'crossoverLine',
+            afterDraw: (chart) => {
+                if(!this.peq.crossover) return;
+                const ctx = chart.ctx;
+                const xAxis = chart.scales.x;
+                const yAxis = chart.scales.y;
+                const xVal = xAxis.getPixelForValue(this.peq.crossover);
+                
+                if (xVal >= xAxis.left && xVal <= xAxis.right) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(xVal, yAxis.top);
+                    ctx.lineTo(xVal, yAxis.bottom);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = 'rgba(236, 72, 153, 0.4)'; 
+                    ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
+                }
+            }
+        };
+
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                scales: { 
+                    x: { type: 'linear', min: 20, max: 200, ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } } 
+                },
+                plugins: { legend: { labels: { color: '#94a3b8' } } }
+            },
+            plugins: [crossoverLinePlugin]
+        });
+    }
+
+    updateChart() {
+        if(!this.chart || !this.currentRawData) return;
+        
+        const baseTargetArr = this.getTargetCurveData(this.currentRawData.length, 0);
+        const autoOffset = this.getGainMatchOffset(this.currentRawData, baseTargetArr, 20, this.peq.crossover);
+        
+        const applyLP = (f, db) => {
+            const ratio = f / this.peq.crossover;
+            const lpGain = 1 / (1 + Math.pow(ratio, 4));
+            return db + 20 * Math.log10(lpGain);
+        };
+
+        const beforeData = this.currentRawData.map(p => ({ x: p.f, y: applyLP(p.f, p.db - autoOffset) }));
+        const targetArr = this.getTargetCurveData(beforeData.length, this.peq.targetOffset);
+        const targetData = targetArr.map((v, i) => ({ x: this.peq.minF + i, y: v }));
+
+        const bandUpper = targetData.map(p => ({ x: p.x, y: p.y + this.peq.threshold }));
+        const bandLower = targetData.map(p => ({ x: p.x, y: p.y - this.peq.threshold }));
+
+        const afterData = beforeData.map(p => {
+            let correction = 0;
+            this.peq.filters.forEach(f => {
+                correction += this.calculateFilterGain(p.x, f.f, f.gain, f.q);
+            });
+            return { x: p.x, y: p.y + correction };
+        });
+
+        const maxX = Math.max(100, this.peq.viewMaxF);
+        this.chart.options.scales.x.max = maxX;
+
+        const visiblePoints = [...beforeData, ...afterData].filter(p => p.x <= maxX && p.y > -20);
+        if (visiblePoints.length > 0) {
+            const yVals = visiblePoints.map(p => p.y);
+            const minY = Math.min(...yVals);
+            const maxY = Math.max(...yVals);
+            this.chart.options.scales.y.min = Math.floor(minY - 3);
+            this.chart.options.scales.y.max = Math.ceil(maxY + 3);
+        }
+
+        const filterDatasets = this.peq.filters.map((f, i) => {
+            const fData = [];
+            for(let freq = this.peq.minF; freq <= 500; freq++) {
+                fData.push({ x: freq, y: this.calculateFilterGain(freq, f.f, f.gain, f.q) });
+            }
+            return {
+                label: `F${i+1}: ${f.f}Hz`,
+                data: fData,
+                borderColor: 'rgba(56, 189, 248, 0.4)',
+                borderWidth: 1,
+                borderDash: [2, 2],
+                pointRadius: 0,
+                tension: 0.3,
+                order: 10,
+                fill: false
+            };
+        });
+
+        this.chart.data.datasets = [
+            { label: 'Limit', data: bandUpper, borderColor: 'transparent', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 0, pointRadius: 0, fill: 1, order: 4 },
+            { label: 'Limit', data: bandLower, borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, borderDash: [2, 2], pointRadius: 0, fill: false, order: 4 },
+            { label: 'Before EQ', data: beforeData, borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, tension: 0.3, order: 2 },
+            { label: 'After EQ', data: afterData, borderColor: '#4ade80', borderWidth: 2, pointRadius: 0, tension: 0.3, order: 1 },
+            { label: 'Target', data: targetData, borderColor: 'rgba(255, 255, 255, 0.3)', borderDash: [5, 5], borderWidth: 1, pointRadius: 0, order: 3 },
+            ...filterDatasets
+        ];
+        
+        this.chart.update('none');
     }
 }
