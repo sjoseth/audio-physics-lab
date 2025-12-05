@@ -3,11 +3,28 @@
     --panel-bg: #1e293b;
     --accent: #3b82f6;
 }
+html {
+    height: 100%;
+    overflow: hidden; /* Hindrer scrolling på rotnivå */
+}
+
 body { 
     background-color: var(--bg-dark); 
     color: #f1f5f9; 
     font-family: 'Inter', system-ui, -apple-system, sans-serif; 
-    overflow-x: hidden;
+    
+    /* THE FIX: Lås body til visningsporten */
+    position: fixed; 
+    inset: 0;        /* Setter top, bottom, left, right til 0 samtidig */
+    width: 100%;
+    height: 100%;    /* Fallback */
+    height: 100dvh;  /* Bruker faktisk synlig høyde på mobil */
+    
+    overflow: hidden; /* Appen skal håndtere scrolling internt (i sidebar/paneler) */
+    
+    /* Flex-layout for innholdet */
+    display: flex;
+    flex-direction: column;
 }
 
 .view-section { 
