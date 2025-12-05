@@ -3,39 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - Audio Tools Suite</title>
+    <title>Privacy Policy - Audio Physics Lab</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>body { background-color: #0f172a; color: #f1f5f9; }</style>
 </head>
-<body class="p-8 max-w-3xl mx-auto">
-    <header class="mb-8 border-b border-slate-800 pb-4">
+<body class="p-8 max-w-3xl mx-auto font-sans">
+    <header class="mb-10 border-b border-slate-800 pb-6">
         <h1 class="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p class="text-slate-400 text-sm">Last Updated: 2025-01-01</p>
+        <p class="text-slate-400 text-sm">Last Updated: October 2025 (Beta v2.0)</p>
     </header>
     
-    <main class="space-y-6 text-slate-300 text-sm leading-relaxed">
+    <main class="space-y-8 text-slate-300 text-sm leading-relaxed">
         <section>
-            <h2 class="text-xl font-bold text-white mb-2">1. Overview</h2>
-            <p>Your privacy is important to us. It is Audio Tools Suite's policy to respect your privacy regarding any information we may collect from you across our website.</p>
+            <h2 class="text-xl font-bold text-blue-400 mb-3">1. Zero-Data Collection</h2>
+            <p>Audio Physics Lab is built with a <strong>"Privacy First"</strong> architecture. We do not collect, store, transmit, or sell any of your personal data or input data.</p>
+            <p class="mt-2">All acoustic calculations (Room Modes, Ray Tracing, PEQ generation) are performed locally in your web browser using JavaScript. Your room dimensions and speaker positions never leave your device.</p>
         </section>
 
         <section>
-            <h2 class="text-xl font-bold text-white mb-2">2. Data Collection</h2>
-            <p>We do not collect, store, or transmit any personal data or inputs you enter into our calculators. All calculations are performed locally in your web browser (client-side processing). Your room dimensions, speaker positions, and other settings never leave your device.</p>
+            <h2 class="text-xl font-bold text-blue-400 mb-3">2. Local Storage</h2>
+            <p>To improve your user experience, we use your browser's built-in <em>Local Storage</em> API. This allows the application to remember your last used room settings between visits.</p>
+            <ul class="list-disc list-inside ml-4 mt-2 text-slate-400">
+                <li>This data is stored solely on your device.</li>
+                <li>You can clear this data at any time by clearing your browser cache.</li>
+            </ul>
         </section>
 
         <section>
-            <h2 class="text-xl font-bold text-white mb-2">3. Cookies and Local Storage</h2>
-            <p>This website does not use cookies for tracking or advertising purposes. We may use your browser's "Local Storage" to save your preferences (such as room dimensions) purely for your convenience, so you don't have to re-enter them every time you visit. This data remains on your device and is not accessible by us.</p>
+            <h2 class="text-xl font-bold text-blue-400 mb-3">3. Analytics & Tracking</h2>
+            <p>This application does not utilize third-party tracking pixels, cookies, or analytics services (like Google Analytics) within the application logic.</p>
         </section>
 
-        <section>
-            <h2 class="text-xl font-bold text-white mb-2">4. Third-Party Services</h2>
-            <p>We use reputable third-party services for hosting and styling (such as Netlify and Tailwind CSS via CDN). These services may collect basic access logs (like IP addresses) for security and performance monitoring, which is standard practice for all websites.</p>
-        </section>
-
-        <div class="pt-8 mt-8 border-t border-slate-800">
-            <a href="index.html" class="text-blue-400 hover:underline">← Back to Audio Tools Suite</a>
+        <div class="pt-8 mt-12 border-t border-slate-800 flex justify-between items-center">
+            <a href="index.html" class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-white transition-colors">← Back to Simulator</a>
         </div>
     </main>
 </body>

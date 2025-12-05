@@ -1,6 +1,6 @@
 /**
  * js/lab-renderer.js
- * Grafikk-motoren for Audio Physics Lab 2.0.
+ * Grafikk-motoren for Audio Physics Lab.
  */
 
 class LabRenderer {

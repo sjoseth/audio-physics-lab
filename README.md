@@ -1,46 +1,56 @@
-# Audio Physics Lab 🔊
+# Audio Physics Lab 2.0 (Beta) 🎧
 
-Audio Physics Lab is a free, privacy-focused web application for simulating and visualizing room acoustics.
+**Real-time acoustic simulation and optimization suite running 100% in your browser.**
 
-The tool runs 100% in the browser (client-side) and helps you with:
+Audio Physics Lab helps audiophiles and engineers optimize their room layout using physics-based simulation. No installation required, no data uploaded to the cloud.
 
-* **Room Mode Simulator:** Visualize standing waves and find optimal subwoofer placement using heatmaps.
-* **Speaker Placement:** Optimize stereo imaging and avoid SBIR (Speaker Boundary Interference Response) using the L.O.T.S. method.
-* **Reflection Tracker:** Locate first reflection points for acoustic panel placement using Ray Tracing.
-* **Time & Phase Aligner:** Calculate precise delay settings (ms) for perfect subwoofer integration.
+🚀 **Live Demo:** [Sett inn URL her]
 
-🔗 **Try the app here:** https://audio-physics-lab.netlify.app
+---
+
+## ✨ Key Features
+
+The application is divided into specialized modules for different acoustic tasks:
+
+### 1. 🏠 Room Mode Simulator
+Visualize standing waves (eigenmodes) in rectangular rooms.
+* **Features:** Heatmap generation for optimal subwoofer placement.
+* **Analysis:** Shows axial, tangential, and oblique modes.
+* **Target:** Compare response against Harman curves (+3dB to +12dB).
+
+### 2. 🔊 Speaker Placement (L.O.T.S.)
+Optimize stereo imaging and reduce SBIR (Speaker Boundary Interference Response).
+* **Heatmaps:** "Goodness" map combining geometric symmetry and frequency response.
+* **Guides:** Overlays for "Rule of Thirds" and "Cardas Method".
+* **Real-time:** Drag speakers and see frequency response update instantly.
+
+### 3. ⚡ Reflection Tracker
+Identify first reflection points for acoustic treatment.
+* **Ray Tracing:** Calculates paths from speakers to side, front, and back walls.
+* **Delay & Attenuation:** Shows precise time delay (ms) and attenuation (dB) relative to direct sound.
+
+### 4. ⏱️ Time Alignment
+Ensure perfect phase integration between mains and subwoofers.
+* **Calculator:** Automatically computes distance and necessary delay (ms) based on speaker positions.
+* **Phase Check:** Recommends polarity settings (0° vs 180°) at the crossover frequency.
+
+### 5. 🎛️ PEQ Generator (Auto EQ)
+Generate Parametric EQ filters to correct room anomalies.
+* **Auto-Calculation:** Identifies peaks and dips and generates generic Biquad filter coefficients (Freq, Gain, Q).
+* **Export:** One-click copy of filter parameters for use in DSPs (MiniDSP, Roon, EqualizerAPO).
+
+---
 
 ## 🛠️ Tech Stack
 
-The project is built with pure "Vanilla" JavaScript, HTML5 Canvas, and Tailwind CSS. No frameworks, no backend, no tracking.
+* **Core:** Vanilla JavaScript (ES6+)
+* **Rendering:** HTML5 Canvas API (2D Context)
+* **Styling:** Tailwind CSS
+* **Charts:** Chart.js
+* **State Management:** Custom LocalStorage implementation
 
-* **Canvas API:** For real-time rendering of rooms and graphs.
-* **Tailwind CSS:** For styling and responsiveness.
-* **Chart.js:** For frequency response graphs.
+## 🚀 Running Locally
 
-## 🚀 Get Started Locally
-
-Since this is a static site, running it locally is very simple:
-
-1. **Clone the repo:**
-   git clone https://github.com/YOUR_USERNAME/audio-physics-lab.git
-   cd audio-physics-lab
-
-2. **Run with Live Server:**
-   If you are using VS Code, install the "Live Server" extension and click "Go Live" in the bottom right corner.
-
-   *Alternatively using Python:*
-   python3 -m http.server
-
-3. **Open in browser:**
-   Go to http://localhost:5500 (or the port chosen by your server).
-
-## 🤝 Contribute
-
-Found a bug? Have an idea for a new feature?
-Feel free to open an Issue or submit a Pull Request!
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/din-bruker/audio-physics-lab.git](https://github.com/din-bruker/audio-physics-lab.git)

@@ -1,6 +1,6 @@
 /**
  * js/lab-controller.js
- * Hovedkontrolleren for Audio Physics Lab 2.0.
+ * Hovedkontrolleren for Audio Physics Lab Beta v1.
  */
 
 // Funksjonen defineres, men kjøres ikke enda
@@ -54,7 +54,7 @@ function initMobileMenu() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Audio Lab 2.0: Booting up...');
+    console.log('Audio Lab Beta v1: Booting up...');
     
     // --- 1. INIT MOBILE MENU (Her er endringen: Vi kaller den INNI her) ---
     initMobileMenu();
