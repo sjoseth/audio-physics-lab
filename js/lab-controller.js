@@ -187,7 +187,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let panelOpen = true;
 
     if(toggleBtn && bottomPanel) {
-        toggleBtn.addEventListener('click', () => {
+        const togglePanel = (e) => {
+            // Hindre at både touch og click fyrer samtidig (double firing)
+            if (e.type === 'touchstart') e.preventDefault();
+            
             panelOpen = !panelOpen;
             if(panelOpen) {
                 bottomPanel.style.height = '16rem';
@@ -197,6 +200,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(icon) icon.style.transform = 'rotate(180deg)';
             }
             setTimeout(() => { if(renderer) renderer.resize(); }, 350);
-        });
+        };
+
+        // Lytt på både klikk og touch
+        toggleBtn.addEventListener('click', togglePanel);
+        toggleBtn.addEventListener('touchstart', togglePanel, {passive: false});
     }
 });
